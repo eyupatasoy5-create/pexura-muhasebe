@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PEXURA Tech</title>
   <link rel="stylesheet" href="style.css">
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
@@ -12,18 +13,23 @@
 <header>
   <h1>PEXURA Tech</h1>
   
+  <div class="view-mode-switch">
+      <button onclick="setAppView('pc')" title="PC Görünümü">💻</button>
+      <button onclick="setAppView('mobile')" title="Mobil Görünüm">📱</button>
+  </div>
+
   <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Müşteri, Tel, Şehir veya Ürün ara..." onkeypress="if(event.key==='Enter') globalSearch()">
+    <input type="text" id="searchInput" placeholder="Ara..." onkeypress="if(event.key==='Enter') globalSearch()">
     <button onclick="globalSearch()">🔍</button>
   </div>
 
   <div class="spacer"></div>
   
-  <button onclick="openTimeMachine()" style="background: #8b5cf6; color: white; border:none; margin-right:5px;">⏪ Zamanı Geri Al</button>
-
   <input type="file" id="importFile" accept=".json" style="display:none" />
   <button id="restoreBtn" style="background: #f59e0b; color: #fff; border:none; margin-right:5px;">📂 Yükle</button>
   <button id="backupBtn" style="background: #10b981; color: #fff; border:none;">💾 Yedek Al</button>
+  
+  <button onclick="openTimeMachine()" style="background: #8b5cf6; color: white; border:none; margin-left:5px;">⏪</button>
 </header>
 
 <div class="authbar">
@@ -53,16 +59,16 @@
     <section id="tab-dash" class="tab">
       <div class="grid">
         <div class="card" style="grid-column: span 12; display:flex; align-items:center; gap:15px; background: rgba(59, 130, 246, 0.1); border-color: #3b82f6;">
-            <h3 style="margin:0; border:none; color: #60a5fa;">Dashboard Para Birimi:</h3>
+            <h3 style="margin:0; border:none; color: #60a5fa;">Para Birimi:</h3>
             <select id="dashCurrencySelect" style="width: auto; min-width: 150px; margin:0;">
-                <option value="USD" selected>$ Amerikan Doları</option>
+                <option value="USD" selected>$ Dolar</option>
             </select>
         </div>
         <div class="card kpi"><div class="label">Ürün Çeşidi & Değeri</div><div class="val" id="dashStokDeger">0</div></div>
-        <div class="card kpi"><div class="label">Toplam Satış (Fatura)</div><div class="val" id="dashToplamSatis">0</div></div>
-        <div class="card kpi"><div class="label">Net Kasa Durumu</div><div class="val" id="dashNakit">0</div></div>
-        <div class="card" style="grid-column: span 6;"><h2>Kritik Stok Uyarıları</h2><table><thead><tr><th>Ürün</th><th>Mevcut</th><th>Min</th></tr></thead><tbody id="dashKritikListe"></tbody></table></div>
-        <div class="card" style="grid-column: span 6;"><h2>Son Hareketler</h2><table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead><tbody id="dashSonHareketler"></tbody></table></div>
+        <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
+        <div class="card kpi"><div class="label">Net Kasa</div><div class="val" id="dashNakit">0</div></div>
+        <div class="card" style="grid-column: span 6;"><h2>Kritik Stok</h2><table><thead><tr><th>Ürün</th><th>Mevcut</th><th>Min</th></tr></thead><tbody id="dashKritikListe"></tbody></table></div>
+        <div class="card" style="grid-column: span 6;"><h2>Son İşlemler</h2><table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead><tbody id="dashSonHareketler"></tbody></table></div>
       </div>
     </section>
 
@@ -76,12 +82,12 @@
           <label>Ödeme Durumu</label><select id="fDurum" style="margin-bottom: 10px; border-color: #f59e0b;"><option value="Odenmedi">🔴 Ödenmedi</option><option value="Odendi">🟢 Ödendi</option></select>
           <select id="fCari"></select>
           <div style="margin: 15px 0; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-            <label style="display:flex; align-items:center; gap: 8px; cursor:pointer; color: #22c55e;"><input type="checkbox" id="fWhatsappCheck" checked style="width: auto;">Müşteriye WhatsApp Gönder</label>
+            <label style="display:flex; align-items:center; gap: 8px; cursor:pointer; color: #22c55e;"><input type="checkbox" id="fWhatsappCheck" checked style="width: auto;">WhatsApp Gönder</label>
           </div>
           <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
           <label>Ürün Seçimi</label><select id="kUrun"></select>
           <div class="row"><input id="kMiktar" type="number" placeholder="Miktar"/><input id="kFiyat" type="number" placeholder="Fiyat"/></div>
-          <div class="row"><input id="kKdv" type="number" value="18" placeholder="KDV %"/><button id="kalemEkleBtn">Listeye Ekle</button></div>
+          <div class="row"><input id="kKdv" type="number" value="18" placeholder="KDV %"/><button id="kalemEkleBtn">Ekle</button></div>
           <h3 style="text-align:right; font-size: 20px;">Toplam: <span id="fGenel">0</span></h3>
           <button class="success" style="width:100%" id="fKaydetBtn">FATURAYI ONAYLA</button>
         </div>
@@ -97,7 +103,7 @@
         <div class="card" style="grid-column: span 4;">
           <h2>Cari Ekle</h2>
           <select id="cariTur"><option value="musteri">Müşteri</option><option value="tedarikci">Tedarikçi</option></select>
-          <input id="cariAd" placeholder="Firma / Ad Soyad"/><input id="cariTel" placeholder="Telefon (532...)"/><input id="cariMail" placeholder="E-posta"/><textarea id="cariAdres" placeholder="Adres"></textarea>
+          <input id="cariAd" placeholder="Firma / Ad Soyad"/><input id="cariTel" placeholder="Telefon"/><input id="cariMail" placeholder="E-posta"/><textarea id="cariAdres" placeholder="Adres"></textarea>
           <div class="row"><input id="cariABorc" type="number" placeholder="Açılış Borç"/><input id="cariAAlacak" type="number" placeholder="Açılış Alacak"/></div>
           <button class="primary" style="width:100%; margin-top:10px;" id="cariEkleBtn">Kaydet</button>
         </div>
@@ -113,17 +119,14 @@
           <h2>Ürün Ekle</h2>
           <div id="uResimPreviewArea" class="img-preview-box hide">
               <img id="uResimPreview" src="" alt="Onizleme">
-              <div style="flex:1">
-                  <span style="font-size:11px; display:block; color:#94a3b8">Mevcut Resim</span>
-                  <button type="button" class="btn-remove-img" onclick="removeCurrentImage()">Resmi Kaldır</button>
-              </div>
+              <div style="flex:1"><span style="font-size:11px; display:block; color:#94a3b8">Mevcut Resim</span><button type="button" class="btn-remove-img" onclick="removeCurrentImage()">Kaldır</button></div>
           </div>
-          <label>Ürün Görseli (İsteğe Bağlı)</label><input type="file" id="uResimInput" accept="image/*" style="padding: 5px;"/>
+          <label>Görsel (Opsiyonel)</label><input type="file" id="uResimInput" accept="image/*" style="padding: 5px;"/>
           <input id="uKod" placeholder="Ürün Kodu"/><input id="uAd" placeholder="Ürün Adı"/>
           <div class="row"><input id="uBirim" placeholder="Birim"/><select id="uPara"><option value="USD" selected>USD</option></select></div>
           <div class="row"><input id="uAlis" type="number" placeholder="Alış Fiyat"/><input id="uSatis" type="number" placeholder="Satış Fiyat"/></div>
           <div class="row"><input id="uMin" type="number" placeholder="Min Stok"/><input id="uStokManuel" type="number" placeholder="Başlangıç Stok"/></div>
-          <input id="uKdv" type="number" value="18" placeholder="KDV"/>
+          <input id="uKdv" type="number" value="0" placeholder="KDV"/>
           <button class="primary" style="width:100%; margin-top:10px;" id="uKaydetBtn">Kaydet</button>
         </div>
         <div class="card" style="grid-column: span 8;">
@@ -171,7 +174,7 @@
 <div id="modalEkstre" class="modal-overlay hide">
   <div class="modal-content">
     <button class="modal-close" onclick="closeEkstre()">&times;</button>
-    <h2 id="ekstreBaslik" style="border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">Ekstre</h2>
+    <h2 id="ekstreBaslik">Ekstre</h2>
     <div class="ekstre-summary">
         <div class="ekstre-box"><h4>TOPLAM ALIM</h4><span id="ekstreAlim" style="color:#60a5fa">0 $</span></div>
         <div class="ekstre-box"><h4>TOPLAM ÖDEME</h4><span id="ekstreOdeme" style="color:#f59e0b">0 $</span></div>
@@ -197,12 +200,9 @@
   <div class="modal-content" style="max-width: 500px; text-align:center;">
     <button class="modal-close" onclick="document.getElementById('modalTimeMachine').classList.add('hide')">&times;</button>
     <h2 style="color:#8b5cf6; margin-top:0;">⏪ Zaman Makinesi</h2>
-    <p style="color:#94a3b8; margin-bottom:20px;">Sistemi belirli bir tarihe geri döndürün. <strong>Dikkat:</strong> Seçilen tarihten sonra yapılan tüm işlemler (eklemeler, güncellemeler) kalıcı olarak silinecek veya geri alınacaktır.</p>
-    
-    <label style="text-align:left;">Hangi tarihe dönmek istiyorsun?</label>
+    <p style="color:#94a3b8; margin-bottom:20px;">Seçilen tarihten sonraki işlemler geri alınacaktır.</p>
     <input type="datetime-local" id="rollbackTime" style="width:100%; padding:15px; font-size:16px; margin-bottom:20px;">
-    
-    <button onclick="executeRollback()" style="background:#8b5cf6; color:white; width:100%; padding:15px; font-size:16px; font-weight:bold; border:none; border-radius:8px;">GERİ DÖNÜŞÜ BAŞLAT</button>
+    <button onclick="executeRollback()" style="background:#8b5cf6; color:white; width:100%; padding:15px;">GERİ DÖNÜŞÜ BAŞLAT</button>
   </div>
 </div>
 

@@ -474,3 +474,15 @@ window.editUrunFromSearch = (id) => { document.getElementById('modalSearch').cla
     if(u.resim_url) { document.getElementById('uResimPreviewArea').classList.remove('hide'); document.getElementById('uResimPreview').src = u.resim_url; } else { document.getElementById('uResimPreviewArea').classList.add('hide'); }
     const b = document.getElementById('uKaydetBtn'); b.textContent="Güncelle"; b.classList.add('warning'); window.scrollTo(0,0); alert("Ürün bilgileri yüklendi."); } };
 window.deleteUrunFromSearch = async (id) => { if(!confirm("Bu ürünü silmek istediğine emin misin?")) return; await supa.from("urunler").delete().eq("id", id); await fetchUrunler(); renderUrunler(); globalSearch(); };
+// --- GÖRÜNÜM MODU DEĞİŞTİRİCİ ---
+function setAppView(mode) {
+    if (mode === 'mobile') {
+        document.body.classList.add('force-mobile');
+        document.body.classList.remove('force-desktop');
+        alert("Mobil görünüme geçildi.");
+    } else {
+        document.body.classList.add('force-desktop');
+        document.body.classList.remove('force-mobile');
+        alert("PC görünümüne geçildi (Telefonda ekranı yan çevirmeniz önerilir).");
+    }
+}
