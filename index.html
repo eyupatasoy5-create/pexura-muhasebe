@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PEXURA Tech</title>
+  <link rel="stylesheet" href="style.css">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="header-left">
+      <h1 onclick="document.querySelector('button[data-tab=\'dash\']').click()" style="cursor: pointer;">PEXURA Tech</h1>
+      <div class="view-mode-switch">
+          <button onclick="setAppView('pc')" title="PC Görünümü">💻</button>
+          <button onclick="setAppView('mobile')" title="Mobil Görünüm">📱</button>
+      </div>
+  </div>
+
+  <div class="header-center">
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Müşteri, Tel, Şehir veya Ürün ara..." onkeypress="if(event.key==='Enter') globalSearch()">
+        <button onclick="globalSearch()">🔍</button>
+    </div>
+  </div>
+
+  <div class="header-right">
+      <input type="file" id="importFile" accept=".json" style="display:none" />
+      <div class="action-group">
+          <button id="restoreBtn" class="group-btn warning">📂 Yükle</button>
+          <button id="backupBtn" class="group-btn success">💾 Yedek Al</button>
+          <button onclick="openTimeMachine()" class="group-btn info">⏪ Zaman</button>
+      </div>
+  </div>
+</header>
+
+<div class="authbar">
+  <div id="authLoggedOut">
+    <input id="authEmail" placeholder="E-posta"/>
+    <input id="authPass" type="password" placeholder="Şifre"/>
+    <button class="primary" id="btnRegister">Kayıt Ol</button>
+    <button id="btnLogin">Giriş</button>
+  </div>
+  <div id="authLoggedIn" class="hide">
+    <span id="authUserMail"></span>
+    <button id="btnLogout">Çıkış</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav>
+    <button class="navbtn active" data-tab="dash">📊 Dashboard</button>
+    <button class="navbtn" data-tab="faturalar">🧾 Fatura Kes</button>
+    <button class="navbtn" data-tab="cariler">👥 Müşteriler</button>
+    <button class="navbtn" data-tab="urunler">📦 Ürünler</button>
+    <button class="navbtn" data-tab="kasa">💰 Kasa</button>
+    <button class="navbtn" data-tab="gelirgider">📉 Gelir/Gider</button>
+  </nav>
+
+  <main>
+    <section id="tab-dash" class="tab">
+      <div class="grid">
+        <div class="card" style="grid-column: span 12; display:flex; align-items:center; gap:15px; background: rgba(59, 130, 246, 0.1); border-color: #3b82f6;">
+            <h3 style="margin:0; border:none; color: #60a5fa;">Para Birimi:</h3>
+            <select id="dashCurrencySelect" style="width: auto; min-width: 150px; margin:0;">
+                <option value="USD" selected>$ Dolar</option>
+            </select>
+        </div>
+        <div class="card kpi"><div class="label">Ürün Çeşidi & Değeri</div><div class="val" id="dashStokDeger">0</div></div>
+        <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
+        <div class="card kpi"><div class="label">Net Kasa</div><div class="val" id="dashNakit">0</div></div>
+        <div class="card" style="grid-column: span 6;"><h2>Kritik Stok</h2><table><thead><tr><th>Ürün</th><th>Mevcut</th><th>Min</th></tr></thead><tbody id="dashKritikListe"></tbody></table></div>
+        <div class="card" style="grid-column: span 6;"><h2>Son İşlemler</h2><table><thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead><tbody id="dashSonHareketler"></tbody></table></div>
+      </div>
+    </section>
+
+    <section id="tab-faturalar" class="tab hide">
+      <div class="grid">
+        <div class="card" style="grid-column: span 5;">
+          <h2>Yeni Fatura</h2>
+          <select id="fTip"><option value="satis">Satış Faturası</option><option value="alis">Alış Faturası</option></select>
+          <div class="row"><select id="fPara"><option value="USD" selected>USD</option></select><input id="fNo" placeholder="Belge No"/></div>
+          <input id="fTarih" type="date"/>
+          <label>Ödeme Durumu</label><select id="fDurum" style="margin-bottom: 10px; border-color: #f59e0b;"><option value="Odenmedi">🔴 Ödenmedi</option><option value="Odendi">🟢 Ödendi</option></select>
+          <select id="fCari"></select>
+          <div style="margin: 15px 0; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+            <label style="display:flex; align-items:center; gap: 8px; cursor:pointer; color: #22c55e;"><input type="checkbox" id="fWhatsappCheck" checked style="width: auto;">WhatsApp Gönder</label>
+          </div>
+          <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+          <label>Ürün Seçimi</label><select id="kUrun"></select>
+          <div class="row"><input id="kMiktar" type="number" placeholder="Miktar"/><input id="kFiyat" type="number" placeholder="Fiyat"/></div>
+          <div class="row"><input id="kKdv" type="number" value="18" placeholder="KDV %"/><button id="kalemEkleBtn">Ekle</button></div>
+          <h3 style="text-align:right; font-size: 20px;">Toplam: <span id="fGenel">0</span></h3>
+          <button class="success" style="width:100%" id="fKaydetBtn">FATURAYI ONAYLA</button>
+        </div>
+        <div class="card" style="grid-column: span 7;">
+          <h2>Kalemler</h2><table><tbody id="kalemListe"></tbody></table><br>
+          <h2>Geçmiş Faturalar</h2><table><thead><tr><th>Tarih</th><th>Müşteri</th><th>Durum</th><th>Tutar</th><th>İşlem</th></tr></thead><tbody id="faturaListe"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-cariler" class="tab hide">
+      <div class="grid">
+        <div class="card" style="grid-column: span 4;">
+          <h2>Cari Ekle</h2>
+          <select id="cariTur"><option value="musteri">Müşteri</option><option value="tedarikci">Tedarikçi</option></select>
+          <input id="cariAd" placeholder="Firma / Ad Soyad"/><input id="cariTel" placeholder="Telefon"/><input id="cariMail" placeholder="E-posta"/><textarea id="cariAdres" placeholder="Adres"></textarea>
+          <div class="row"><input id="cariABorc" type="number" placeholder="Açılış Borç"/><input id="cariAAlacak" type="number" placeholder="Açılış Alacak"/></div>
+          <button class="primary" style="width:100%; margin-top:10px;" id="cariEkleBtn">Kaydet</button>
+        </div>
+        <div class="card" style="grid-column: span 8;">
+          <h2>Cari Listesi</h2><table><thead><tr><th>Ünvan / Tel</th><th>Tür</th><th>İşlem</th></tr></thead><tbody id="cariListe"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-urunler" class="tab hide">
+      <div class="grid">
+        <div class="card" id="uEkleCard" style="grid-column: span 4;">
+          <h2>Ürün Ekle</h2>
+          <div id="uResimPreviewArea" class="img-preview-box hide">
+              <img id="uResimPreview" src="" alt="Onizleme">
+              <div style="flex:1"><span style="font-size:11px; display:block; color:#94a3b8">Mevcut Resim</span><button type="button" class="btn-remove-img" onclick="removeCurrentImage()">Kaldır</button></div>
+          </div>
+          <label>Görsel (Opsiyonel)</label><input type="file" id="uResimInput" accept="image/*" style="padding: 5px;"/>
+          <input id="uKod" placeholder="Ürün Kodu"/><input id="uAd" placeholder="Ürün Adı"/>
+          <div class="row"><input id="uBirim" placeholder="Birim"/><select id="uPara"><option value="USD" selected>USD</option></select></div>
+          <div class="row"><input id="uAlis" type="number" placeholder="Alış Fiyat"/><input id="uSatis" type="number" placeholder="Satış Fiyat"/></div>
+          <div class="row"><input id="uMin" type="number" placeholder="Min Stok"/><input id="uStokManuel" type="number" placeholder="Başlangıç Stok"/></div>
+          <input id="uKdv" type="number" value="0" placeholder="KDV"/>
+          <button class="primary" style="width:100%; margin-top:10px;" id="uKaydetBtn">Kaydet</button>
+        </div>
+        <div class="card" style="grid-column: span 8;">
+          <h2>Ürünler</h2><table><thead><tr><th>Resim</th><th>Kod</th><th>Ad</th><th>Stok</th><th>Fiyat</th><th>İşlem</th></tr></thead><tbody id="uListe"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-kasa" class="tab hide">
+      <div class="grid">
+        <div class="card" style="grid-column: span 5;">
+          <h2>Hesap Ekle</h2>
+          <input id="hAd" placeholder="Hesap Adı"/><select id="hTur"><option value="kasa">Kasa</option><option value="banka">Banka</option></select>
+          <select id="hPara"><option value="USD" selected>USD</option></select>
+          <input id="hAc" type="number" placeholder="Açılış Bakiye"/>
+          <button class="primary" style="margin-top:10px" id="hEkleBtn">Hesap Oluştur</button>
+          <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+          <h2>İşlem Gir</h2>
+          <select id="kHesap"></select><select id="kTur"><option value="tahsilat">Tahsilat</option><option value="odeme">Ödeme</option></select>
+          <input id="kTutar" type="number" placeholder="Tutar"/><input id="kTarih" type="date"/><select id="kCari"></select>
+          <input id="kAciklama" placeholder="Açıklama"/>
+          <button class="success" style="width:100%; margin-top:10px" id="kEkleBtn">İşlemi Kaydet</button>
+        </div>
+        <div class="card" style="grid-column: span 7;">
+          <h2>Hesaplar</h2><table><tbody id="hesapListe"></tbody></table><br>
+          <h2>Hareketler</h2><table><tbody id="hareketListe"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-gelirgider" class="tab hide">
+      <div class="grid">
+         <div class="card" style="grid-column: span 4;">
+           <h2>Gelir/Gider Ekle</h2>
+           <select id="ggTur"><option value="gider">Gider</option><option value="gelir">Gelir</option></select>
+           <input id="ggKat" placeholder="Kategori"/><input id="ggTutar" type="number" placeholder="Tutar"/><input id="ggAc" placeholder="Açıklama"/><input id="ggTarih" type="date"/>
+           <button class="primary" style="margin-top:10px" id="ggEkleBtn">Ekle</button>
+         </div>
+         <div class="card" style="grid-column: span 8;"><table><tbody id="ggListe"></tbody></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
+<div id="modalImageView" class="modal-overlay hide" onclick="closeImageModal()">
+    <div class="modal-content" style="background:transparent; border:none; box-shadow:none; text-align:center; display:flex; justify-content:center; align-items:center;">
+        <img id="imgBigPreview" src="" style="max-width:90%; max-height:85vh; border-radius:12px; box-shadow: 0 0 30px rgba(0,0,0,0.8);">
+    </div>
+</div>
+
+<div id="modalEkstre" class="modal-overlay hide">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeEkstre()">&times;</button>
+    <h2 id="ekstreBaslik">Ekstre</h2>
+    <div class="ekstre-summary">
+        <div class="ekstre-box"><h4>TOPLAM ALIM</h4><span id="ekstreAlim" style="color:#60a5fa">0 $</span></div>
+        <div class="ekstre-box"><h4>TOPLAM ÖDEME</h4><span id="ekstreOdeme" style="color:#f59e0b">0 $</span></div>
+        <div class="ekstre-box"><h4>BAKİYE</h4><span id="ekstreBakiye">0 $</span></div>
+    </div>
+    <h3>📦 Ürünler</h3><table style="margin-bottom:20px;"><thead><tr><th>Tarih</th><th>Ürün</th><th>Miktar</th><th>B.Fiyat</th><th>Tutar</th></tr></thead><tbody id="ekstreUrunler"></tbody></table>
+    <h3>💰 Ödemeler</h3><table><thead><tr><th>Tarih</th><th>İşlem</th><th>Tutar</th></tr></thead><tbody id="ekstreOdemeler"></tbody></table>
+  </div>
+</div>
+
+<div id="modalSearch" class="modal-overlay hide">
+  <div class="modal-content">
+    <button class="modal-close" onclick="document.getElementById('modalSearch').classList.add('hide')">&times;</button>
+    <h2 style="margin-top:0;">🔎 Sonuçlar</h2>
+    <div class="search-section-title">👥 Müşteriler</div>
+    <table><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>Şehir/Adres</th><th>Bakiye</th><th>İşlem</th></tr></thead><tbody id="searchResultCari"></tbody></table>
+    <div class="search-section-title">📦 Ürünler</div>
+    <table><thead><tr><th>Ürün Adı</th><th>Kod</th><th>Fiyat</th><th>Stok</th><th>İşlem</th></tr></thead><tbody id="searchResultUrun"></tbody></table>
+  </div>
+</div>
+
+<div id="modalTimeMachine" class="modal-overlay hide">
+  <div class="modal-content" style="max-width: 500px; text-align:center;">
+    <button class="modal-close" onclick="document.getElementById('modalTimeMachine').classList.add('hide')">&times;</button>
+    <h2 style="color:#8b5cf6; margin-top:0;">⏪ Zaman Makinesi</h2>
+    <p style="color:#94a3b8; margin-bottom:20px;">Seçilen tarihten sonraki işlemler geri alınacaktır.</p>
+    <input type="datetime-local" id="rollbackTime" style="width:100%; padding:15px; font-size:16px; margin-bottom:20px;">
+    <button onclick="executeRollback()" style="background:#8b5cf6; color:white; width:100%; padding:15px;">GERİ DÖNÜŞÜ BAŞLAT</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
