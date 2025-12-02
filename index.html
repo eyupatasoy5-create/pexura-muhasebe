@@ -21,7 +21,7 @@
 
   <div class="header-center">
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="Müşteri, Tel, Şehir veya Ürün ara..." onkeypress="if(event.key==='Enter') globalSearch()">
+        <input type="text" id="searchInput" placeholder="Müşteri, Tel, Mail veya Ürün ara..." onkeypress="if(event.key==='Enter') globalSearch()">
         <button onclick="globalSearch()">🔍</button>
     </div>
   </div>
@@ -57,6 +57,7 @@
     <button class="navbtn" data-tab="urunler">📦 Ürünler</button>
     <button class="navbtn" data-tab="kasa">💰 Kasa</button>
     <button class="navbtn" data-tab="gelirgider">📉 Gelir/Gider</button>
+    <button class="navbtn" data-tab="gecmis">🕒 İşlem Geçmişi</button>
   </nav>
 
   <main>
@@ -172,6 +173,30 @@
          <div class="card" style="grid-column: span 8;"><table><tbody id="ggListe"></tbody></table></div>
       </div>
     </section>
+
+    <section id="tab-gecmis" class="tab hide">
+      <div class="card" style="grid-column: span 12;">
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:20px; gap:10px;">
+            <h2 style="border:none; margin:0;">Tüm İşlem Geçmişi</h2>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="text" id="historySearch" placeholder="İşlem ara..." style="width:250px; margin:0;" onkeyup="renderHistory()">
+                <button class="danger" style="padding: 10px 15px;" onclick="clearAllHistory()">🗑️ Tümünü Temizle</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+                <tr>
+                    <th>Tarih</th>
+                    <th>Kaynak</th>
+                    <th>Açıklama / Cari</th>
+                    <th>Tutar</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="historyList"></tbody>
+          </table>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -188,22 +213,24 @@
     <button class="modal-close" onclick="closeEkstre()">&times;</button>
     <h2 id="ekstreBaslik">Ekstre</h2>
     <div class="ekstre-summary">
-        <div class="ekstre-box"><h4>TOPLAM ALIM</h4><span id="ekstreAlim" style="color:#60a5fa">0 $</span></div>
-        <div class="ekstre-box"><h4>TOPLAM ÖDEME</h4><span id="ekstreOdeme" style="color:#f59e0b">0 $</span></div>
-        <div class="ekstre-box"><h4>BAKİYE</h4><span id="ekstreBakiye">0 $</span></div>
+        <div class="ekstre-box"><h4>TOPLAM BORÇ (SATIŞ)</h4><span id="ekstreAlim" style="color:#60a5fa">0 $</span></div>
+        <div class="ekstre-box"><h4>TOPLAM ÖDENEN</h4><span id="ekstreOdeme" style="color:#f59e0b">0 $</span></div>
+        <div class="ekstre-box"><h4>KALAN BAKİYE</h4><span id="ekstreBakiye">0 $</span></div>
     </div>
-    <h3>📦 Ürünler</h3><table style="margin-bottom:20px;"><thead><tr><th>Tarih</th><th>Ürün</th><th>Miktar</th><th>B.Fiyat</th><th>Tutar</th></tr></thead><tbody id="ekstreUrunler"></tbody></table>
-    <h3>💰 Ödemeler</h3><table><thead><tr><th>Tarih</th><th>İşlem</th><th>Tutar</th></tr></thead><tbody id="ekstreOdemeler"></tbody></table>
+    <h3>📦 Ürün Hareketleri</h3>
+    <table style="margin-bottom:20px;"><thead><tr><th>Tarih</th><th>Ürün</th><th>Miktar</th><th>B.Fiyat</th><th>Tutar</th><th>İşlem</th></tr></thead><tbody id="ekstreUrunler"></tbody></table>
+    <h3>💰 Ödemeler / Finans</h3>
+    <table><thead><tr><th>Tarih</th><th>İşlem Türü</th><th>Tutar</th><th>İşlem</th></tr></thead><tbody id="ekstreOdemeler"></tbody></table>
   </div>
 </div>
 
 <div id="modalSearch" class="modal-overlay hide">
   <div class="modal-content">
     <button class="modal-close" onclick="document.getElementById('modalSearch').classList.add('hide')">&times;</button>
-    <h2 style="margin-top:0;">🔎 Sonuçlar</h2>
-    <div class="search-section-title">👥 Müşteriler</div>
-    <table><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>Şehir/Adres</th><th>Bakiye</th><th>İşlem</th></tr></thead><tbody id="searchResultCari"></tbody></table>
-    <div class="search-section-title">📦 Ürünler</div>
+    <h2 style="margin-top:0;">🔎 Arama Sonuçları</h2>
+    <div class="search-section-title" style="color:#94a3b8; margin-top:15px; border-bottom:1px solid #334155;">👥 Müşteriler</div>
+    <table><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>Adres</th><th>Bakiye</th><th>İşlem</th></tr></thead><tbody id="searchResultCari"></tbody></table>
+    <div class="search-section-title" style="color:#94a3b8; margin-top:15px; border-bottom:1px solid #334155;">📦 Ürünler</div>
     <table><thead><tr><th>Ürün Adı</th><th>Kod</th><th>Fiyat</th><th>Stok</th><th>İşlem</th></tr></thead><tbody id="searchResultUrun"></tbody></table>
   </div>
 </div>
@@ -215,6 +242,59 @@
     <p style="color:#94a3b8; margin-bottom:20px;">Seçilen tarihten sonraki işlemler geri alınacaktır.</p>
     <input type="datetime-local" id="rollbackTime" style="width:100%; padding:15px; font-size:16px; margin-bottom:20px;">
     <button onclick="executeRollback()" style="background:#8b5cf6; color:white; width:100%; padding:15px;">GERİ DÖNÜŞÜ BAŞLAT</button>
+  </div>
+</div>
+
+<div id="modalCariPanel" class="modal-overlay hide">
+  <div class="modal-content" style="max-width: 900px;">
+    <button class="modal-close" onclick="document.getElementById('modalCariPanel').classList.add('hide')">&times;</button>
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:15px; margin-bottom:20px;">
+        <h2 id="cpBaslik" style="margin:0; color:#60a5fa; font-size:24px;">Müşteri Adı</h2>
+        <div style="text-align:right;">
+            <span style="font-size:12px; color:#94a3b8;">Güncel Bakiye</span><br>
+            <span id="cpBakiye" style="font-size:20px; font-weight:bold; color:#e2e8f0;">0.00 $</span>
+        </div>
+    </div>
+
+    <div class="row" style="gap: 30px;">
+        <div style="flex:1; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid #334155;">
+            <h3 style="margin-top:0; color:#4ade80;">📦 Hızlı Satış (Ürün Ver)</h3>
+            <label>Ürün Seç</label>
+            <select id="cpUrunSelect" onchange="cpUrunSecildi()"></select>
+            <div class="row">
+                <div><label>Fiyat</label><input id="cpUrunFiyat" type="number"></div>
+                <div><label>Adet</label><input id="cpUrunAdet" type="number" value="1"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                <span id="cpStokDurum" style="font-size:12px; color:#94a3b8;">Stok: -</span>
+                <span id="cpToplamTutar" style="font-weight:bold; font-size:16px;">0.00</span>
+            </div>
+            <button class="success" style="width:100%; margin-top:15px;" onclick="cpSatisYap()">SATIŞI ONAYLA & STOKTAN DÜŞ</button>
+        </div>
+
+        <div style="flex:1; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid #334155;">
+            <h3 style="margin-top:0; color:#f59e0b;">💰 Finansal İşlem</h3>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button id="btnTahsilat" class="primary" style="flex:1; opacity:1;" onclick="setCpFinansTur('tahsilat')">Tahsilat (Para Al)</button>
+                <button id="btnOdeme" class="danger" style="flex:1; opacity:0.5;" onclick="setCpFinansTur('odeme')">Ödeme (Para Ver)</button>
+            </div>
+            <input type="hidden" id="cpFinansTur" value="tahsilat">
+            <label>İşlenecek Tutar</label>
+            <input id="cpFinansTutar" type="number" placeholder="0.00">
+            <label>Kasa/Banka Seç</label>
+            <select id="cpKasaSelect"></select>
+            <label>Açıklama</label>
+            <input id="cpFinansAciklama" placeholder="Örn: Elden ödeme alındı">
+            <button class="primary" style="width:100%; margin-top:15px;" onclick="cpFinansIsle()">BAKİYEYİ GÜNCELLE</button>
+        </div>
+    </div>
+    
+    <div style="margin-top:30px;">
+        <h3>📜 Son 5 Hareket</h3>
+        <table><thead><tr><th>Tarih</th><th>İşlem</th><th>Tutar</th></tr></thead><tbody id="cpGecmisListe"></tbody></table>
+        <button onclick="document.getElementById('modalCariPanel').classList.add('hide'); openEkstre(ACTIVE_CARI_ID)" style="width:100%; margin-top:10px; background:transparent; border:1px dashed #475569; color:#94a3b8;">Detaylı Ekstre Görüntüle</button>
+    </div>
   </div>
 </div>
 
