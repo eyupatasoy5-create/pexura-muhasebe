@@ -250,7 +250,20 @@ button.danger { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px 
   .kpi { width: 100%; }
   
   .row { flex-direction: column; gap: 0; }
+
+  /* Mobil tablo kaydırma + kompakt görünüm */
+  .card table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .card table thead, .card table tbody{ display:table; width:100%; }
+  .card table{ min-width: 720px; }
+  th, td{ padding: 10px 14px; }
+
+  /* Ürün resimleri çok büyük olmasın */
+  .urun-img{ width:120px; height:120px; }
+
+  /* Modal içerik daha rahat */
+  .modal-content{ padding: 18px; }
 }
+
 
 body.force-mobile .wrap { grid-template-columns: 1fr !important; }
 body.force-mobile header { grid-template-columns: 1fr !important; height: auto !important; padding-bottom: 15px; }
@@ -302,4 +315,10 @@ body.force-desktop .row { flex-direction: row !important; }
 /* detay satırı */
 .detail-row td{
   background: rgba(255,255,255,0.02);
+}
+
+
+/* Mobilde tablo/PDF taşarsa yana kaydır (düzeni bozmaz) */
+@media (max-width: 768px){
+  .card table{display:block; overflow-x:auto; white-space:nowrap;}
 }

@@ -164,7 +164,8 @@
             <button id="kalemEkleBtn">Ekle</button>
           </div>
 
-          <h3 style="text-align:right; font-size: 20px;">Toplam: <span id="fGenel">0</span></h3>
+          <h3 style="text-align:right; font-size: 20px; margin-bottom:6px;">Toplam: <span id="fGenel">0</span></h3>
+          <div style="text-align:right; font-size:14px; color:#94a3b8; margin-bottom:12px;">Toplam Kâr: <span id="fKar" style="color:#4ade80; font-weight:700;">0</span></div>
           <button class="success" style="width:100%" id="fKaydetBtn">FATURAYI ONAYLA</button>
 
           <!-- PDF geçmişi -->
@@ -176,7 +177,10 @@
 
         <div class="card" style="grid-column: span 7;">
           <h2>Kalemler</h2>
-          <table><tbody id="kalemListe"></tbody></table>
+          <table>
+            <thead><tr><th>Ürün</th><th>Miktar</th><th>Alış</th><th>Satış</th><th>Tutar</th><th>Kâr</th><th></th></tr></thead>
+            <tbody id="kalemListe"></tbody>
+          </table>
           <br>
 
           <h2>Geçmiş Faturalar</h2>
@@ -433,13 +437,17 @@
         </div>
 
         <table class="mini-table" style="margin-top:12px;">
-          <thead><tr><th>Ürün</th><th>Adet</th><th>Fiyat</th><th>Tutar</th><th></th></tr></thead>
+          <thead><tr><th>Ürün</th><th>Adet</th><th>Fiyat</th><th>Tutar</th><th>Kâr</th><th></th></tr></thead>
           <tbody id="cpSepetBody"></tbody>
         </table>
 
         <div class="total-line">
           <span>Sepet Toplam:</span>
           <b id="cpSepetToplam">0.00</b>
+        </div>
+        <div class="total-line">
+          <span>Toplam Kâr:</span>
+          <b id="cpKarToplam">0.00</b>
         </div>
 
         <button class="success" style="width:100%; margin-top:12px;" onclick="cpSatisiTamamla()">SATIŞI TAMAMLA (FATURA OLUŞTUR)</button>

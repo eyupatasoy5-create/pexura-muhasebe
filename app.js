@@ -35,6 +35,33 @@ const nowLocalDT = ()=>{
   return d.toISOString().slice(0,16);
 };
 
+// Tarih formatı: GG.AA.YYYY SS:DD (PDF ve listelerde)
+function formatDateTR(dt){
+  const d = new Date(dt);
+  if(!dt || isNaN(d.getTime())) return String(dt||'');
+  const pad = (n)=> String(n).padStart(2,'0');
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+
+// Tarih formatı: GG.AA.YYYY SS:DD (madde 1)
+const formatTRDateTime = (v)=>{
+  if(!v) return "";
+  try{
+    // v: "YYYY-MM-DD" veya "YYYY-MM-DDTHH:MM" gibi
+    const s = String(v).trim().replace(" ", "T");
+    const d = new Date(s);
+    if(!Number.isFinite(d.getTime())) return String(v);
+    const pad=(n)=> String(n).padStart(2,'0');
+    const dd=pad(d.getDate()), mm=pad(d.getMonth()+1), yy=d.getFullYear();
+    const hh=pad(d.getHours()), mi=pad(d.getMinutes());
+    return `${dd}.${mm}.${yy} ${hh}:${mi}`;
+  }catch(e){
+    return String(v);
+  }
+};
+
+
 function showToast(message, type = 'success') {
   const container = document.getElementById('toast-container');
   if(!container){ alert(message); return; }
@@ -50,6 +77,8 @@ const toNum = (v)=> {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+// Kâr hesap (alış, satış, miktar)
+const calcLineProfit = (alis, satis, miktar)=> (toNum(satis) - toNum(alis)) * toNum(miktar);
 const isPosNum = (v)=> toNum(v) > 0;
 const isEmail = (s)=> !!String(s||"").match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
 const cleanPhoneTR = (s)=>{
@@ -295,7 +324,7 @@ function renderDash(){
   const sonHareketler = document.getElementById('dashSonHareketler');
   sonHareketler.innerHTML = "";
   combinedMoves.slice(0, 5).forEach(m => {
-    sonHareketler.innerHTML += `<tr><td>${m.tarih}</td><td><span class="tag">${m.tur}</span></td><td>${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
+    sonHareketler.innerHTML += `<tr><td>${formatTRDateTime(m.tarih)}</td><td><span class="tag">${m.tur}</span></td><td>${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
   });
 
   // Son Ödemeler
@@ -307,7 +336,7 @@ function renderDash(){
       .slice(0,10)
       .forEach(h=>{
         const cari = CARILER.find(c=>c.id==h.cari_id);
-        dashOdemeler.innerHTML += `<tr><td>${h.tarih}</td><td>${cari?.ad||'-'}</td><td>${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td></tr>`;
+        dashOdemeler.innerHTML += `<tr><td>${formatTRDateTime(h.tarih)}</td><td>${cari?.ad||'-'}</td><td>${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td></tr>`;
       });
   }
 
@@ -320,7 +349,7 @@ function renderDash(){
       .slice(0,10)
       .forEach(f=>{
         const cari = CARILER.find(c=>c.id==f.cari_id);
-        dashIadeler.innerHTML += `<tr><td>${f.tarih}</td><td>${cari?.ad||'-'}</td><td>${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
+        dashIadeler.innerHTML += `<tr><td>${formatTRDateTime(f.tarih)}</td><td>${cari?.ad||'-'}</td><td>${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
       });
   }
 
@@ -382,7 +411,7 @@ function renderPdfHistory(){
   ul.innerHTML = list.length? "" : "<li class='muted'>PDF oluşturulmadı.</li>";
   list.forEach(x=>{
     const li=document.createElement("li");
-    li.textContent = `${x.tarih} - ${x.numara||"-"} - ${x.cari||"-"} - ${fmt(x.tutar,x.pb)}`;
+    li.textContent = `${formatDateTR(x.tarih)} - ${x.numara||"-"} - ${x.cari||"-"} - ${fmt(x.tutar,x.pb)}`;
     ul.appendChild(li);
   });
 }
@@ -390,36 +419,126 @@ function renderPdfHistory(){
 async function generateAndSharePDF(fatura, mode = 'download') {
   try {
     if (!window.jspdf) { showToast("PDF kütüphanesi eksik.", "error"); return; }
-    const { jsPDF } = window.jspdf; const doc = new jsPDF();
-    const { data: kalemler } = await supa.from('fatura_kalemler').select('*, urunler(ad)').eq('fatura_id', fatura.id);
-    const { data: cari } = await supa.from('cariler').select('ad, tel').eq('id', fatura.cari_id).single();
-    const cariAd = cari ? cari.ad : 'Bilinmiyor'; const cariTel = cari ? cari.tel : '';
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
 
-    doc.setTextColor(59, 130, 246); doc.setFont("helvetica", "bold"); doc.setFontSize(24); doc.text("PEXURA TECH", 14, 20);
-    doc.setTextColor(0, 0, 0); doc.setFontSize(14);
+    // Kalemler
+    const { data: kalemler } = await supa
+      .from('fatura_kalemler')
+      .select('*')
+      .eq('fatura_id', fatura.id);
+
+    // Cari bilgisi
+    const { data: cari } = await supa
+      .from('cariler')
+      .select('ad, tel, acilis_borc, acilis_alacak')
+      .eq('id', fatura.cari_id)
+      .single();
+
+    const cariAd = cari?.ad || 'Bilinmiyor';
+    const cariTel = cari?.tel || '';
+
+    // --- Güncel borç hesapla (DB'den, para birimi bazlı) ---
+    let guncelBorc = 0;
+    try {
+      // Cari faturaları (aynı para birimi)
+      const { data: cariFaturalar } = await supa
+        .from('faturalar')
+        .select('tip, genel_toplam, para_birimi')
+        .eq('cari_id', fatura.cari_id)
+        .eq('para_birimi', fatura.para_birimi);
+
+      // Kasa hareketleri + hesap para birimi
+      const { data: hareketler } = await supa
+        .from('kasa_hareketler')
+        .select('tur, tutar, hesap_id, cari_id')
+        .eq('cari_id', fatura.cari_id);
+
+      const { data: hesaplar } = await supa
+        .from('kasa_hesaplar')
+        .select('id, para_birimi');
+
+      const hesapPB = new Map((hesaplar || []).map(h => [String(h.id), h.para_birimi]));
+
+      let borc = 0;
+      let alacak = 0;
+
+      // faturalar: satis borca ekler, iade alacağa ekler (borçtan düşer)
+      (cariFaturalar || []).forEach(ff => {
+        const tip = normalizeTip(ff.tip);
+        if (tip === 'satis') borc += toNum(ff.genel_toplam);
+        if (tip === 'iade') alacak += toNum(ff.genel_toplam);
+      });
+
+      // tahsilat: alacağa eklenir (borçtan düşer) - sadece ilgili PB
+      (hareketler || []).forEach(h => {
+        if (h.tur !== 'tahsilat') return;
+        const pb = hesapPB.get(String(h.hesap_id)) || null;
+        if (pb && pb !== fatura.para_birimi) return;
+        alacak += toNum(h.tutar);
+      });
+
+      // açılış
+      borc += toNum(cari?.acilis_borc);
+      alacak += toNum(cari?.acilis_alacak);
+
+      guncelBorc = borc - alacak;
+    } catch (e) {
+      // DB hesabı olmazsa local fallback
+      if (typeof hesaplaBakiye === "function") guncelBorc = hesaplaBakiye(fatura.cari_id);
+    }
+
+    // --- PDF Tasarım (ekran bozmadan, sadece PDF) ---
+    doc.setTextColor(59, 130, 246);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(26);
+    doc.text("PEXURA TECH", 14, 20);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
     doc.text(trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI'), 14, 30);
 
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Tarih: ${fatura.tarih}`, 14, 40);
-    doc.text(`Fatura No: ${fatura.numara}`, 14, 45);
+    doc.text(`Tarih: ${formatDateTR(fatura.tarih)}`, 14, 40);
+    doc.text(`Fatura No: ${fatura.numara || '-'}`, 14, 45);
     doc.text(`Cari: ${trFix(cariAd)}`, 14, 50);
 
+    // Tablo (ekstra ürün = fatura kalemleri)
     const tableData = (kalemler || []).map(k => [
-      trFix(k.urun_ad_snapshot || k.urunler?.ad || 'Silinmis Urun'),
-      k.miktar,
+      trFix(k.urun_ad_snapshot || 'Silinmis Urun'),
+      String(k.miktar || 0),
       fmt(k.birim_fiyat, fatura.para_birimi),
       fmt(k.satir_tutar, fatura.para_birimi)
     ]);
 
+    const startY = 60;
+
     doc.autoTable({
-      startY: 60,
+      startY,
       head: [['Ürün', 'Miktar', 'Birim Fiyat', 'Tutar']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246] },
-      foot: [['', '', 'GENEL TOPLAM', fmt(fatura.genel_toplam, fatura.para_birimi)]]
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 10, cellPadding: 3 },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 40 }
+      },
+      foot: [['', '', 'GENEL TOPLAM', fmt(fatura.genel_toplam, fatura.para_birimi)]],
+      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' }
     });
-    const fileName = `Pexura_Fatura_${fatura.numara||fatura.id}.pdf`;
+
+    // Güncel borç (GENEL TOPLAM altı)
+    const yAfter = doc.lastAutoTable?.finalY || (startY + 20);
+    const etiket = guncelBorc > 0 ? "Güncel Borç" : (guncelBorc < 0 ? "Güncel Alacak" : "Güncel Bakiye");
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${etiket}: ${fmt(guncelBorc, fatura.para_birimi)}`, 14, yAfter + 10);
+
+    const fileName = `Pexura_Fatura_${fatura.numara || fatura.id}.pdf`;
 
     if (mode === 'download') {
       doc.save(fileName);
@@ -428,11 +547,16 @@ async function generateAndSharePDF(fatura, mode = 'download') {
       doc.save(fileName);
       addPdfHistory(fatura);
       if (cariTel) {
-        let cleanPhone = cleanPhoneTR(cariTel);
+        const cleanPhone = cleanPhoneTR(cariTel);
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent("Sayın " + cariAd + ", faturanız ektedir.")}`, '_blank');
-      } else { showToast("Müşteri telefonu yok.", "warning"); }
+      } else {
+        showToast("Müşteri telefonu yok.", "warning");
+      }
     }
-  } catch (err) { console.error(err); showToast("PDF Hatası: " + err.message, "error"); }
+  } catch (err) {
+    console.error(err);
+    showToast("PDF Hatası: " + (err?.message || err), "error");
+  }
 }
 
 /* =========================================================
@@ -720,12 +844,15 @@ document.getElementById('kalemEkleBtn').onclick=()=>{
 function renderKalemler(){
   kalemListe.innerHTML="";
   FATURA_SATIRLAR.forEach((s,i)=>{
+    const kar = calcLineProfit(s.alis_snapshot, s.birim_fiyat, s.miktar);
     const tr=document.createElement("tr");
     tr.innerHTML=`
       <td>${s.urun_ad}</td>
       <td>${s.miktar}</td>
+      <td>${fmt(s.alis_snapshot, fPara.value)}</td>
       <td>${fmt(s.birim_fiyat, fPara.value)}</td>
       <td>${fmt(s.satir_tutar, fPara.value)}</td>
+      <td><span style="color:${kar>=0?'#4ade80':'#fca5a5'}; font-weight:700;">${fmt(kar, fPara.value)}</span></td>
       <td><button class="danger" data-i="${i}">X</button></td>`;
     kalemListe.appendChild(tr);
   });
@@ -740,8 +867,33 @@ function renderKalemler(){
 
 function calcFaturaTotals(){
   let top=0;
-  FATURA_SATIRLAR.forEach(s=> top+=s.satir_tutar);
+  let karTop=0;
+  FATURA_SATIRLAR.forEach(s=> {
+    top += toNum(s.satir_tutar);
+    karTop += (toNum(s.birim_fiyat) - toNum(s.alis_snapshot)) * toNum(s.miktar);
+  });
   fGenel.textContent = fmt(top, fPara.value);
+
+  // Düzeni bozmadan: Toplam'ın altına tek satır kâr bilgisi
+  try{
+    let karEl = document.getElementById('fKarLine');
+    if(!karEl){
+      const h3 = fGenel?.closest('h3');
+      if(h3){
+        h3.insertAdjacentHTML(
+          'afterend',
+          `<div id="fKarLine" style="text-align:right; margin-top:-8px; margin-bottom:10px; font-size:13px; color:#4ade80;">
+            Toplam Kâr: <span id="fKarVal"></span>
+          </div>`
+        );
+        karEl = document.getElementById('fKarVal');
+      }
+    }else{
+      karEl = document.getElementById('fKarVal') || karEl;
+    }
+    if(karEl) karEl.textContent = fmt(karTop, fPara.value);
+  }catch(e){}
+
   return top;
 }
 
@@ -948,7 +1100,7 @@ function renderFaturalar(){
     const tipText = normalizeTip(f.tip)==='satis' ? 'Satış' : 'İade';
 
     tr.innerHTML=`
-      <td>${f.tarih}</td>
+      <td>${formatTRDateTime(f.tarih)}</td>
       <td>${cariAd}</td>
       <td><span class="tag">${tipText}</span></td>
       <td>${fmt(f.genel_toplam, f.para_birimi)}</td>
@@ -1092,7 +1244,7 @@ function renderHareketler(){
   HAREKETLER.forEach(h=>{
     const tr = document.createElement("tr");
     tr.innerHTML=`
-      <td>${h.tarih}</td>
+      <td>${formatTRDateTime(h.tarih)}</td>
       <td><span class="tag">${h.tur}</span></td>
       <td>${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td>
       <td>${h.aciklama || ''}</td>
@@ -1159,7 +1311,7 @@ function renderGG(){
   GG.forEach(g=>{
     const tr = document.createElement("tr");
     tr.innerHTML=`
-      <td>${g.tarih}</td><td>${g.tur}</td><td>${fmt(g.tutar)}</td>
+      <td>${formatTRDateTime(g.tarih)}</td><td>${g.tur}</td><td>${fmt(g.tutar)}</td>
       <td>${g.aciklama||''}</td>
       <td>
         <div class="btn-group">
@@ -1336,18 +1488,27 @@ function renderCpSepet(){
   const body=document.getElementById("cpSepetBody");
   body.innerHTML="";
   let total=0;
+  let karTop=0;
   CP_SEPET.forEach((s,i)=>{
-    total += s.satir_tutar;
+    total += toNum(s.satir_tutar);
+    const kar = calcLineProfit(s.alis_snapshot, s.birim_fiyat, s.miktar);
+    karTop += kar;
+
     body.innerHTML += `
       <tr>
         <td>${s.urun_ad}</td>
         <td>${s.miktar}</td>
         <td>${fmt(s.birim_fiyat, s.para_birimi)}</td>
         <td>${fmt(s.satir_tutar, s.para_birimi)}</td>
+        <td><span style="color:${kar>=0?'#4ade80':'#fca5a5'}; font-weight:700;">${fmt(kar, s.para_birimi)}</span></td>
         <td><button class="danger" onclick="cpSepetSil(${i})">X</button></td>
       </tr>`;
   });
-  document.getElementById("cpSepetToplam").textContent = fmt(total);
+  const pb = CP_SEPET[0]?.para_birimi || "USD";
+  document.getElementById("cpSepetToplam").textContent = fmt(total, pb);
+
+  const karEl=document.getElementById("cpKarToplam");
+  if(karEl) karEl.textContent = fmt(karTop, pb);
 }
 window.cpSepetSil = (i)=>{
   CP_SEPET.splice(i,1);
@@ -1470,7 +1631,7 @@ function renderCpHareketler(list){
   list.forEach(x=>{
     body.innerHTML += `
     <tr>
-      <td>${x.tarih}</td>
+      <td>${formatTRDateTime(x.tarih)}</td>
       <td>${x.tur}</td>
       <td>${fmt(x.tutar,x.pb)}</td>
       <td>${x.aciklama||"-"}</td>
@@ -1598,7 +1759,7 @@ window.openEkstre = async (cariId) => {
       const islemTuru = isIade ? '(İADE)' : '';
       tblUrunler.innerHTML += `
         <tr>
-          <td>${k.faturalar.tarih}</td>
+          <td>${formatTRDateTime(k.faturalar.tarih)}</td>
           <td>${k.urun_ad_snapshot || (k.urunler ? k.urunler.ad : 'Silinmiş Ürün')} <small style="color:#f59e0b">${islemTuru}</small></td>
           <td>${k.miktar}</td>
           <td>${fmt(k.birim_fiyat)}</td>
@@ -1618,7 +1779,7 @@ window.openEkstre = async (cariId) => {
       const etiket = h.tur === 'tahsilat' ? 'Tahsilat (Giriş)' : 'Ödeme (Çıkış)';
       tblOdemeler.innerHTML += `
         <tr>
-          <td>${h.tarih}</td>
+          <td>${formatTRDateTime(h.tarih)}</td>
           <td><span style="color:${renk}">${etiket}</span><br><small>${h.aciklama||''}</small></td>
           <td style="font-weight:bold">${fmt(h.tutar)}</td>
           <td><button class="warning" style="padding:4px 8px; font-size:11px;" onclick="closeEkstre(); jumpToHareketEdit('${h.id}')">Düzenle</button></td>
@@ -1728,7 +1889,7 @@ window.renderHistory = () => {
     .forEach(e => {
       tbody.innerHTML += `
         <tr>
-          <td>${e.date}</td>
+          <td>${formatTRDateTime(e.date)}</td>
           <td><span class="tag" style="background:${e.color}20; color:${e.color}; border:1px solid ${e.color}">${e.label}</span></td>
           <td>${e.desc}</td>
           <td style="font-weight:bold; color:${e.color}">${fmt(e.amount, e.currency)}</td>

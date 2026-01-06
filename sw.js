@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v2';
+const CACHE_NAME = 'pexura-v3';
 const ASSETS = [
   '/',
   '/index.html',
