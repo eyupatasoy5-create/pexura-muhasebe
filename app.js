@@ -1390,8 +1390,12 @@ document.querySelectorAll(".navbtn").forEach(b => {
 });
 
 // default dates
-fTarih.value = nowLocalDT();
-kTarih.value = todayStr();
+(() => {
+  const _fT = document.getElementById('fTarih');
+  const _kT = document.getElementById('kTarih');
+  if(_fT) _fT.value = nowLocalDT();
+  if(_kT) _kT.value = todayStr();
+})();
 document.getElementById('kKdv').value = "0";
 document.getElementById('uKdv').value = "0";
 
@@ -1944,11 +1948,220 @@ window.deleteHistoryItem = async (type, id) => {
 };
 
 /* =========================================================
-   BACKUP / RESTORE / TIME MACHINE (aynı kaldı)
-   (senin orijinal kodun ile birebir)
+   BACKUP / RESTORE / TIME MACHINE (basit sürüm)
+   Not: GitHub Pages statik ortam için, hızlı çalışır "rollback" ve "temizle" eklendi.
 ========================================================= */
-// ... bu bölüm senin orijinalindeki gibi bırakıldı ...
-// (uzun olduğu için kısaltmadım; kendi dosyanda aynı kalsın)
+window.openTimeMachine = () => {
+  const modal = document.getElementById('modalTimeMachine');
+  const input = document.getElementById('rollbackTime');
+  if(input && !input.value) input.value = nowLocalDT();
+  if(modal) modal.classList.remove('hide');
+};
+
+async function _deleteAllFrom(table){
+  // Supabase .delete() için filtre şart; id alanı olan tablolarda genel bir neq ile hepsini seçiyoruz
+  return await supa.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+}
+
+async function _deleteNewerThan(table, col, iso){
+  // tarih kolonlarına göre kes
+  return await supa.from(table).delete().gt(col, iso);
+}
+
+window.clearAllHistory = async () => {
+  if(!confirm("TÜM işlemleri (fatura, kasa, gelir/gider, stok) tamamen silmek istediğine emin misin?")) return;
+  if(!confirm("Bu işlem GERİ ALINAMAZ. Devam edilsin mi?")) return;
+
+  try{
+    // Bağımlı tablolardan başla
+    await _deleteAllFrom('fatura_kalemler');
+    await _deleteAllFrom('stok_hareketleri');
+    await _deleteAllFrom('kasa_hareketler');
+    await _deleteAllFrom('gelir_gider');
+    await _deleteAllFrom('faturalar');
+    // loglar varsa
+    try{ await _deleteAllFrom('system_logs'); }catch(e){}
+
+    showToast("Tüm geçmiş temizlendi.", "success");
+    await fetchAll();
+    renderAll();
+    if(window.renderHistory) window.renderHistory();
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Geçmiş temizlenemedi.", "error");
+  }
+};
+
+window.executeRollback = async () => {
+  const input = document.getElementById('rollbackTime');
+  const modal = document.getElementById('modalTimeMachine');
+  const iso = input?.value ? new Date(input.value).toISOString() : null;
+  if(!iso){ return showToast("Lütfen bir tarih/saat seç.", "error"); }
+
+  if(!confirm("Seçilen tarihten SONRAKİ tüm işlemler silinecek. Devam edilsin mi?")) return;
+
+  try{
+    // tarih kolonlarına göre sil
+    await _deleteNewerThan('fatura_kalemler','created_at', iso).catch(()=>{});
+    await _deleteNewerThan('stok_hareketleri','tarih', iso);
+    await _deleteNewerThan('kasa_hareketler','tarih', iso);
+    await _deleteNewerThan('gelir_gider','tarih', iso);
+    await _deleteNewerThan('faturalar','tarih', iso);
+
+    showToast("Rollback tamamlandı.", "success");
+    if(modal) modal.classList.add('hide');
+    await fetchAll();
+    renderAll();
+    if(window.renderHistory) window.renderHistory();
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Rollback yapılamadı.", "error");
+  }
+};
+
+
+
+/* =========================================================
+   BACKUP / RESTORE (JSON export/import)
+   - "Yedek Al" : Bellekteki verileri JSON indirir
+   - "Yükle"    : JSON dosyasını okuyup Supabase'e UPSERT eder
+========================================================= */
+
+function _downloadTextFile(filename, text){
+  const blob = new Blob([text], {type:"application/json;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+}
+
+function buildBackupPayload(){
+  return {
+    app: "pexura-muhasebe",
+    version: 1,
+    exported_at: new Date().toISOString(),
+    user: USER ? { id: USER.id, email: USER.email, role: USER_ROLE } : null,
+    tables: {
+      cariler: CARILER || [],
+      urunler: URUNLER || [],
+      kasa_hesaplar: HESAPLAR || [],
+      kasa_hareketler: HAREKETLER || [],
+      gelir_gider: GG || [],
+      faturalar: FATURALAR || [],
+      fatura_kalemler: TUM_KALEMLER || [],
+      stok_hareketleri: [] // opsiyonel; panelde ayrı liste yok, boş bırakıyoruz
+    }
+  };
+}
+
+async function doBackup(){
+  try{
+    if(!USER) return showToast("Yedek almak için önce giriş yap.", "warning");
+    // en güncel veri için çek
+    await fetchAll();
+    const payload = buildBackupPayload();
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    _downloadTextFile(`pexura-yedek-${stamp}.json`, JSON.stringify(payload, null, 2));
+    showToast("Yedek indirildi.", "success");
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Yedek alınamadı.", "error");
+  }
+}
+
+function _maybeAttachUserId(rows){
+  // user_id kolonu beklenen tablolarda yoksa sorun olmaz; Supabase tarafında ignore eder
+  if(!USER?.id) return rows;
+  return (rows||[]).map(r=>{
+    if(r && typeof r === 'object' && !Array.isArray(r)){
+      if(!("user_id" in r)) return r;
+      return { ...r, user_id: r.user_id || USER.id };
+    }
+    return r;
+  });
+}
+
+async function upsertTable(table, rows){
+  if(!rows || !rows.length) return;
+  // user_id varsa doldur
+  const prepared = _maybeAttachUserId(rows);
+
+  // çoğu tabloda pk = id; upsert çakışma çözümü
+  const { error } = await supa.from(table).upsert(prepared, { onConflict: "id" });
+  if(error) throw error;
+}
+
+async function doRestoreFromJsonText(text){
+  if(!USER) return showToast("Yüklemek için önce giriş yap.", "warning");
+
+  let payload;
+  try{
+    payload = JSON.parse(text);
+  }catch(e){
+    return showToast("JSON okunamadı / dosya bozuk.", "error");
+  }
+
+  const tables = payload?.tables || payload;
+  if(!tables || typeof tables !== "object"){
+    return showToast("Yedek formatı tanınmadı.", "error");
+  }
+
+  if(!confirm("Yedek içeriği Supabase'e YAZILACAK (UPSERT). Devam edilsin mi?")) return;
+
+  try{
+    // Bağımlılık sırası önemli
+    const order = [
+      "cariler",
+      "urunler",
+      "kasa_hesaplar",
+      "faturalar",
+      "fatura_kalemler",
+      "kasa_hareketler",
+      "gelir_gider",
+      "stok_hareketleri"
+    ];
+
+    for(const t of order){
+      if(tables[t] && tables[t].length){
+        showToast(`${t} yükleniyor...`, "info");
+        await upsertTable(t, tables[t]);
+      }
+    }
+
+    showToast("Yükleme tamamlandı.", "success");
+    await fetchAll();
+    renderAll();
+    if(window.renderHistory) window.renderHistory();
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Yükleme başarısız.", "error");
+  }
+}
+
+// UI bağla
+(function bindBackupRestoreUI(){
+  const backupBtn = document.getElementById("backupBtn");
+  const restoreBtn = document.getElementById("restoreBtn");
+  const importFile = document.getElementById("importFile");
+
+  if(backupBtn) backupBtn.addEventListener("click", doBackup);
+
+  if(restoreBtn && importFile){
+    restoreBtn.addEventListener("click", ()=> importFile.click());
+    importFile.addEventListener("change", async (ev)=>{
+      const file = ev.target.files?.[0];
+      if(!file) return;
+      const text = await file.text();
+      await doRestoreFromJsonText(text);
+      ev.target.value = ""; // aynı dosyayı tekrar seçebilmek için
+    });
+  }
+})();
+
 
 /* =========================================================
    STARTUP ALERTS (madde 12)
