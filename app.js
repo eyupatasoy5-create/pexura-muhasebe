@@ -21,6 +21,9 @@ let ACTIVE_CARI_ID = null;
 let CP_SEPET = [];
 let CP_HAREKETLER = [];
 
+// Fatura ekranında "son kullanılan cariler" (localStorage)
+const RECENT_CARI_KEY = "recentCariIds";
+
 /* =========================================================
    HELPER + VALIDATION (madde 11)
 ========================================================= */
@@ -34,6 +37,26 @@ const nowLocalDT = ()=>{
   d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
   return d.toISOString().slice(0,16);
 };
+
+function ymd(dateStrOrDate){
+  const d = (dateStrOrDate instanceof Date) ? dateStrOrDate : new Date(dateStrOrDate);
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+
+function getActiveCariler(){
+  // aktif alanı yoksa hepsi aktif kabul edilir
+  return (CARILER||[]).filter(c => c.aktif !== false);
+}
+
+function getRecentCariIds(){
+  try{ return JSON.parse(localStorage.getItem(RECENT_CARI_KEY)||'[]') || []; }catch(e){ return []; }
+}
+function pushRecentCariId(id){
+  if(!id) return;
+  const arr = getRecentCariIds().filter(x => x !== id);
+  arr.unshift(id);
+  localStorage.setItem(RECENT_CARI_KEY, JSON.stringify(arr.slice(0,10)));
+}
 
 // Tarih formatı: GG.AA.YYYY SS:DD (PDF ve listelerde)
 function formatDateTR(dt){
@@ -270,6 +293,84 @@ function calcAgingBuckets(curr='USD'){
   return buckets;
 }
 
+// Dashboard: Satış & Kâr işlem listesi (Fatura Bazlı)
+function renderDashSatisKarListesi(curr='USD'){
+  const tbody = document.getElementById('dashSatisKarListe');
+  const elTopSatis = document.getElementById('dashSatisKarToplamSatis');
+  const elTopKar = document.getElementById('dashSatisKarToplamKar');
+  const elTopKarYuzde = document.getElementById('dashSatisKarToplamKarYuzde');
+  if(!tbody || !elTopSatis || !elTopKar) return;
+
+  // Kalemleri fatura_id'ye göre indexle
+  const kalemByFatura = new Map();
+  for(const k of (TUM_KALEMLER||[])){
+    const fid = k.fatura_id;
+    if(!fid) continue;
+    if(!kalemByFatura.has(fid)) kalemByFatura.set(fid, []);
+    kalemByFatura.get(fid).push(k);
+  }
+
+  // Carileri id -> record map
+  const cariById = new Map((CARILER||[]).map(c=>[c.id, c]));
+
+  const satisFaturalar = (FATURALAR||[])
+    .filter(f => normalizeTip(f.tip)==='satis' && (f.para_birimi||'USD') === curr)
+    .slice()
+    .sort((a,b)=> new Date(b.tarih) - new Date(a.tarih));
+
+  tbody.innerHTML = '';
+  let topSatis = 0;
+  let topKar = 0;
+
+  satisFaturalar.slice(0, 50).forEach(f=>{
+    const kalemler = kalemByFatura.get(f.id) || [];
+    let satis = 0;
+    let kar = 0;
+    for(const fk of kalemler){
+      const miktar = toNum(fk.miktar);
+      const bf = toNum(fk.birim_fiyat);
+      const alisSnap = toNum(fk.alis_fiyat_snapshot);
+      satis += miktar * bf;
+      kar += (miktar * bf) - (miktar * alisSnap);
+    }
+
+    topSatis += satis;
+    topKar += kar;
+
+    const cari = cariById.get(f.cari_id);
+    const musteri = (cari && (cari.ad || cari.unvan || cari.isim || cari.name)) || '-';
+    const karYuzde = satis > 0 ? (kar / satis) * 100 : 0;
+
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.onclick = ()=> openFaturaDetayModal(f.id);
+
+    tr.innerHTML = `
+      <td>${formatTRDateTime(f.tarih)}</td>
+      <td>
+        ${f.numara || '-'}<br>
+        <small style="opacity:.75;">
+          <a href="javascript:void(0)" onclick="event.stopPropagation(); openEkstre('${f.cari_id}')" style="color:#60a5fa; text-decoration:none;">
+            ${musteri}
+          </a>
+        </small>
+      </td>
+      <td style="text-align:right;">${fmt(satis, curr)}</td>
+      <td style="text-align:right; font-weight:700; color:${kar>=0?'#4ade80':'#ef4444'};">${fmt(kar, curr)}</td>
+      <td style="text-align:right;">${karYuzde.toFixed(2)}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  elTopSatis.textContent = fmt(topSatis, curr);
+  elTopKar.textContent = fmt(topKar, curr);
+  if(elTopKarYuzde){
+    const pct = topSatis > 0 ? (topKar / topSatis) * 100 : 0;
+    elTopKarYuzde.textContent = pct.toFixed(2) + '%';
+  }
+}
+
+
 function renderDash(){
   const currElem = document.getElementById('dashCurrencySelect');
   const curr = currElem ? currElem.value : 'USD';
@@ -340,6 +441,76 @@ function renderDash(){
       });
   }
 
+  // Satış & Kâr İşlem Listesi (Fatura Bazlı)
+  renderDashSatisKarListesi(curr);
+
+  // Bugün / Bu Ay panosu
+  const todayYMD = ymd(new Date());
+  const nowD = new Date();
+  const mStart = new Date(nowD.getFullYear(), nowD.getMonth(), 1);
+  const mEnd = new Date(nowD.getFullYear(), nowD.getMonth()+1, 1);
+  const mStartY = ymd(mStart);
+  const mEndY = ymd(mEnd);
+
+  const monthSalesInvoices = FATURALAR.filter(f => normalizeTip(f.tip)==='satis' && f.para_birimi===curr && ymd(f.tarih) >= mStartY && ymd(f.tarih) < mEndY);
+  const monthSales = monthSalesInvoices.reduce((sum,f)=> sum + toNum(f.genel_toplam), 0);
+
+  const todaySales = FATURALAR.filter(f => normalizeTip(f.tip)==='satis' && f.para_birimi===curr && ymd(f.tarih)===todayYMD)
+    .reduce((sum,f)=> sum + toNum(f.genel_toplam), 0);
+
+  // kasa hareketleri
+  const todayIncome = HAREKETLER.filter(h => h.tur==='tahsilat' && ymd(h.tarih)===todayYMD)
+    .filter(h => (HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || curr)===curr)
+    .reduce((sum,h)=> sum + toNum(h.tutar), 0);
+  const todayExpense = HAREKETLER.filter(h => h.tur==='odeme' && ymd(h.tarih)===todayYMD)
+    .filter(h => (HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || curr)===curr)
+    .reduce((sum,h)=> sum + toNum(h.tutar), 0);
+
+  // Gelir-gider (para birimi kolonu yoksa, seçili para birimi ile gösteriyoruz)
+  const monthGider = GG.filter(g => g.tur==='gider' && ymd(g.tarih) >= mStartY && ymd(g.tarih) < mEndY)
+    .reduce((sum,g)=> sum + toNum(g.tutar), 0);
+
+  // Ay kâr: fatura_kalemler snapshotlarından hesapla
+  const kalemByFatura = {};
+  (TUM_KALEMLER||[]).forEach(k=>{ (kalemByFatura[k.fatura_id] ||= []).push(k); });
+  const monthProfit = monthSalesInvoices.reduce((sum,f)=>{
+    const ks = kalemByFatura[f.id] || [];
+    const p = ks.reduce((s,k)=> s + (toNum(k.miktar) * (toNum(k.birim_fiyat) - toNum(k.alis_fiyat_snapshot))), 0);
+    return sum + p;
+  }, 0);
+  const monthNetProfit = monthProfit - monthGider;
+
+  const eBS = document.getElementById('dashBugunSatis');
+  const eBT = document.getElementById('dashBugunTahsilat');
+  const eBO = document.getElementById('dashBugunOdeme');
+  if(eBS) eBS.textContent = fmt(todaySales, curr);
+  if(eBT) eBT.textContent = fmt(todayIncome, curr);
+  if(eBO) eBO.textContent = fmt(todayExpense, curr);
+
+  const eAS = document.getElementById('dashAySatis');
+  const eAG = document.getElementById('dashAyGider');
+  const eAK = document.getElementById('dashAyNetKar');
+  if(eAS) eAS.textContent = fmt(monthSales, curr);
+  if(eAG) eAG.textContent = fmt(monthGider, curr);
+  if(eAK) eAK.innerHTML = `<span style="color:${monthNetProfit>=0?'#4ade80':'#ef4444'}">${fmt(monthNetProfit, curr)}</span>`;
+
+  // En borçlu 5 cari (seçili para birimi)
+  const topBorclu = (CARILER||[])
+    .filter(c=> c.aktif!==false)
+    .map(c=>{
+      const map = getCariBakiyeMap(c);
+      return { id:c.id, ad:c.ad, bakiye: toNum(map[curr]||0) };
+    })
+    .filter(x=> x.bakiye > 0)
+    .sort((a,b)=> b.bakiye - a.bakiye)
+    .slice(0,5);
+  const tList = document.getElementById('dashTopBorcluList');
+  if(tList){
+    tList.innerHTML = topBorclu.length
+      ? topBorclu.map(x=>`<li>${x.ad}<span class="muted">${fmt(x.bakiye, curr)}</span></li>`).join('')
+      : `<li class="muted">Borçlu cari yok.</li>`;
+  }
+
   // Son İadeler
   const dashIadeler = document.getElementById("dashIadeler");
   if(dashIadeler){
@@ -368,6 +539,7 @@ function renderDash(){
     }
   }
 }
+
 const dSel = document.getElementById('dashCurrencySelect');
 if(dSel) dSel.onchange = renderDash;
 
@@ -605,6 +777,7 @@ document.getElementById('cariEkleBtn').onclick = async ()=>{
     error = res.error;
     if(!error) showToast("Müşteri güncellendi", "success");
   } else {
+    payload.aktif = true;
     const res = await supa.from("cariler").insert(payload).select().single();
     error = res.error;
     if(res.data) await logAction('cariler', 'INSERT', res.data.id);
@@ -618,35 +791,80 @@ document.getElementById('cariEkleBtn').onclick = async ()=>{
   renderCariler();
 };
 
+
+function getCariBakiyeMap(c){
+  // Pozitif = müşteri borçlu, negatif = alacaklı (biz borçluyuz)
+  const map = {};
+  // Açılış bakiyesi varsayılan TL kabul edilir
+  const acilis = (toNum(c.acilis_borc) || 0) - (toNum(c.acilis_alacak) || 0);
+  if(acilis) map["TL"] = (map["TL"] || 0) + acilis;
+
+  FATURALAR.filter(f => f.cari_id === c.id).forEach(f=>{
+    const cur = f.para_birimi || "TL";
+    const kalan = (toNum(f.genel_toplam) || 0) - (toNum(f.odenen_tutar) || 0);
+    if(!kalan) return;
+    if(f.tip === "satis") map[cur] = (map[cur] || 0) + kalan;
+    else if(f.tip === "iade") map[cur] = (map[cur] || 0) - kalan;
+  });
+
+  return map;
+}
+
+function bakiyeHtmlForCari(c){
+  const map = getCariBakiyeMap(c);
+  const entries = Object.entries(map).filter(([,v]) => Math.abs(v) > 0.000001);
+
+  if(entries.length === 0) return `<span class="muted">0</span>`;
+
+  // Aynı satırda küçük etiketler
+  return entries.map(([cur,val])=>{
+    const cls = val > 0 ? "danger" : "success"; // borç kırmızı, alacak yeşil
+    const txt = `${Math.abs(val).toLocaleString("tr-TR")} ${cur}`;
+    const sign = val > 0 ? "Borç" : "Alacak";
+    return `<span class="tag ${cls}" title="${sign}">${txt}</span>`;
+  }).join(" ");
+}
+
 function renderCariler(){
   cariListe.innerHTML="";
-  CARILER.forEach(c=>{
+  const showPasif = !!document.getElementById('showPasifCariler')?.checked;
+  const list = (CARILER||[])
+    .filter(c => showPasif ? true : (c.aktif !== false))
+    .slice()
+    .sort((a,b)=> (a.aktif===false) - (b.aktif===false));
+
+  list.forEach(c=>{
+    const pasif = (c.aktif === false);
     const tr=document.createElement("tr");
     tr.innerHTML=`
-      <td onclick="openCariPanel('${c.id}')" style="cursor:pointer;">
+      <td onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
         <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${c.ad}</span><br>
         <small class="muted">${c.tel||'-'}</small>
       </td>
-      <td><span class="tag">${c.tur}</span></td>
+      <td>${bakiyeHtmlForCari(c)}</td>
+      <td><span class="tag">${c.tur}</span>${pasif?` <span class="tag danger">pasif</span>`:''}</td>
       <td>
         <div class="btn-group">
           <button class="info" onclick="openEkstre('${c.id}')">Ekstre</button>
           <button class="warning" onclick="editCari('${c.id}')">Düzenle</button>
-          <button class="danger" data-del="${c.id}">Sil</button>
+          <button class="danger" data-toggle="${c.id}" data-active="${pasif?0:1}">${pasif?'Aktifleştir':'Pasife Al'}</button>
         </div>
       </td>`;
     cariListe.appendChild(tr);
   });
-  cariListe.querySelectorAll("[data-del]").forEach(btn=>{
+  cariListe.querySelectorAll("[data-toggle]").forEach(btn=>{
     btn.onclick=async ()=>{
-      if(confirm("Sil?")){
-        const id = btn.dataset.del;
-        const oldRec = CARILER.find(c => c.id == id);
-        await logAction('cariler', 'DELETE', id, oldRec);
-        await supa.from("cariler").delete().eq("id", id);
-        await fetchCariler(); renderCariler();
-        showToast("Silindi", "success");
-      }
+      const id = btn.dataset.toggle;
+      const isActive = btn.dataset.active === '1';
+      const next = !isActive; // true => aktifleştir, false => pasife al
+      const msg = next ? "Cari aktifleştirilsin mi?" : "Cari pasife alınsın mı?";
+      if(!confirm(msg)) return;
+      const oldRec = CARILER.find(c => c.id == id);
+      await logAction('cariler', next ? 'ACTIVATE' : 'DEACTIVATE', id, oldRec);
+      const { error } = await supa.from("cariler").update({ aktif: next }).eq("id", id);
+      if(error) return showToast(error.message, "error");
+      await fetchCariler(); renderCariler(); fillSelects();
+      showToast(next ? "Aktifleştirildi" : "Pasife alındı", "success");
     };
   });
 }
@@ -1006,6 +1224,8 @@ document.getElementById('fKaydetBtn').onclick=async ()=>{
     }
 
     showToast("Fatura güncellendi.", "success");
+    pushRecentCariId(fCari.value);
+    renderRecentCariler();
     resetFaturaForm();
   } else {
     const { data: inserted, error } = await supa.from("faturalar").insert({
@@ -1020,6 +1240,10 @@ document.getElementById('fKaydetBtn').onclick=async ()=>{
 
     if(error) return showToast(error.message, "error");
     await logAction('faturalar', 'INSERT', inserted.id);
+
+    // Son kullanılan cariler
+    pushRecentCariId(fCari.value);
+    renderRecentCariler();
 
     const kalemler = FATURA_SATIRLAR.map(s=>({
       fatura_id: inserted.id,
@@ -1346,8 +1570,61 @@ function renderGG(){
 /* =========================================================
    SELECTS & RENDER ALL
 ========================================================= */
+function initFaturaCariQuickSearch(){
+  const inp = document.getElementById('fCariSearch');
+  const wrap = document.getElementById('recentCariWrap');
+  if(inp && !inp._bound){
+    inp._bound = true;
+    inp.addEventListener('input', ()=>{
+      renderFaturaCariOptions(inp.value);
+    });
+  }
+  if(wrap){
+    renderRecentCariler();
+  }
+}
+
+function renderFaturaCariOptions(filterText=''){
+  const sel = document.getElementById('fCari');
+  if(!sel) return;
+  const ft = (filterText||'').trim().toLowerCase();
+  const active = getActiveCariler();
+  const list = ft
+    ? active.filter(c =>
+        (c.ad||'').toLowerCase().includes(ft) ||
+        (c.tel||'').toLowerCase().includes(ft)
+      )
+    : active;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Seç</option>` + list.map(c=>`<option value="${c.id}">${c.ad}${c.tel?` (${c.tel})`:''}</option>`).join('');
+  if(current && list.some(c=>c.id===current)) sel.value = current;
+}
+
+function renderRecentCariler(){
+  const wrap = document.getElementById('recentCariWrap');
+  if(!wrap) return;
+  const ids = getRecentCariIds();
+  const active = getActiveCariler();
+  const rec = ids.map(id => active.find(c=>c.id===id)).filter(Boolean);
+  if(rec.length===0){
+    wrap.innerHTML = `<span class="muted" style="font-size:12px;">Son kullanılan cariler burada görünecek.</span>`;
+    return;
+  }
+  wrap.innerHTML = rec.map(c=>`<button type="button" data-cari="${c.id}">${c.ad}</button>`).join('');
+  wrap.querySelectorAll('button[data-cari]').forEach(b=>{
+    b.onclick = ()=>{
+      const id = b.dataset.cari;
+      const sel = document.getElementById('fCari');
+      if(sel){ sel.value = id; }
+      const inp = document.getElementById('fCariSearch');
+      if(inp){ inp.value=''; renderFaturaCariOptions(''); }
+    };
+  });
+}
+
 function fillSelects(){
-  fCari.innerHTML = `<option value="">Seç</option>` + CARILER.map(c=>`<option value="${c.id}">${c.ad}</option>`).join("");
+  const activeCariler = getActiveCariler();
+  fCari.innerHTML = `<option value="">Seç</option>` + activeCariler.map(c=>`<option value="${c.id}">${c.ad}${c.tel?` (${c.tel})`:''}</option>`).join("");
   kUrun.innerHTML = `<option value="">Seç</option>` + URUNLER.map(u=>`<option value="${u.id}" data-price="${u.satis_fiyat}">${u.ad}</option>`).join("");
   kUrun.onchange=()=>{
     const opt=kUrun.selectedOptions[0];
@@ -1355,13 +1632,16 @@ function fillSelects(){
   };
 
   kHesap.innerHTML = HESAPLAR.map(h=>`<option value="${h.id}">${h.ad} (${h.para_birimi})</option>`).join("");
-  kCari.innerHTML = `<option value="">Cari Yok</option>` + CARILER.map(c=>`<option value="${c.id}">${c.ad}</option>`).join("");
+  kCari.innerHTML = `<option value="">Cari Yok</option>` + activeCariler.map(c=>`<option value="${c.id}">${c.ad}</option>`).join("");
 
   // fatura filtre selectleri varsa doldur (madde 10)
   const fFilCari=document.getElementById("fFilterCari");
   if(fFilCari){
-    fFilCari.innerHTML=`<option value="">Tümü</option>`+CARILER.map(c=>`<option value="${c.id}">${c.ad}</option>`).join("");
+    fFilCari.innerHTML=`<option value="">Tümü</option>`+activeCariler.map(c=>`<option value="${c.id}">${c.ad}</option>`).join("");
   }
+
+  // Fatura: hızlı cari arama + son kullanılanlar
+  initFaturaCariQuickSearch();
 }
 
 function renderAll(){
@@ -2176,3 +2456,318 @@ function runStartupAlerts(){
 
 // START
 loadSession();
+
+// UI events
+document.getElementById('showPasifCariler')?.addEventListener('change', ()=>{
+  try{ renderCariler(); }catch(e){}
+});
+
+
+// ==== Quick Cari Add (from Fatura screen) ====
+window.openCariQuickModal = () => {
+  if(!window.modalCariQuick) return showToast("Modal bulunamadı", "error");
+  modalCariQuick.classList.remove("hide");
+  if(window.qCariAd) qCariAd.value = "";
+  if(window.qCariTel) qCariTel.value = "";
+  if(window.qCariTur) qCariTur.value = "musteri";
+  setTimeout(()=>{ if(window.qCariAd) qCariAd.focus(); }, 50);
+};
+
+window.closeCariQuickModal = () => {
+  if(window.modalCariQuick) modalCariQuick.classList.add("hide");
+};
+
+window.saveCariQuickModal = async () => {
+  const ad = (window.qCariAd?.value || "").trim();
+  const tel = (window.qCariTel?.value || "").trim();
+  const tur = (window.qCariTur?.value || "musteri").trim();
+
+  if(!ad) return showToast("Müşteri adı boş olamaz", "error");
+
+  const payload = {
+    tur,
+    ad,
+    tel,
+    aktif: true,
+    mail: null,
+    adres: null,
+    acilis_borc: 0,
+    acilis_alacak: 0
+  };
+
+  const res = await supa.from("cariler").insert(payload).select().single();
+  if(res.error){
+    console.error(res.error);
+    return showToast(res.error.message || "Kayıt hatası", "error");
+  }
+
+  showToast("Müşteri eklendi", "success");
+  closeCariQuickModal();
+
+  await fetchCariler();
+  fillSelects();
+  renderCariler();
+
+  // faturada otomatik seç
+  if(window.fCari) fCari.value = res.data.id;
+};
+
+
+/* =========================================================
+   DASHBOARD - Fatura Detay Modal (PDF + Tahsilat)
+========================================================= */
+let CURRENT_FATURA_DETAY_ID = null;
+
+window.openFaturaDetayModal = async (faturaId) => {
+  try{
+    CURRENT_FATURA_DETAY_ID = faturaId;
+    const modal = document.getElementById('modalFaturaDetay');
+    if(!modal) return;
+
+    // Data (local cache -> fallback to fetch)
+    let f = FATURALAR.find(x => x.id == faturaId);
+    if(!f){
+      const { data, error } = await supa.from('faturalar').select('*').eq('id', faturaId).single();
+      if(error) throw error;
+      f = data;
+    }
+    const c = CARILER.find(x => x.id == f.cari_id) || null;
+
+    // Kalemler
+    let kalemler = (TUM_KALEMLER||[]).filter(k => k.fatura_id == faturaId);
+    if(!kalemler.length){
+      const { data } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', faturaId);
+      kalemler = data || [];
+    }
+
+    // DOM refs
+    const elTitle = document.getElementById('faturaDetayBaslik');
+    const elMeta  = document.getElementById('faturaDetayMeta');
+    const elBody  = document.getElementById('faturaDetayKalemler');
+
+    const elAra   = document.getElementById('faturaDetayAraToplam');
+    const elKdv   = document.getElementById('faturaDetayKdvToplam');
+    const elGenel = document.getElementById('faturaDetayGenelToplam');
+    const elOdenen= document.getElementById('faturaDetayOdenen');
+    const elKalan = document.getElementById('faturaDetayKalan');
+
+    const pb = (f.para_birimi || 'TL');
+    const araToplam = toNum(f.ara_toplam) || kalemler.reduce((a,k)=>a + (toNum(k.miktar)*toNum(k.birim_fiyat)),0);
+    const kdvToplam = toNum(f.kdv_toplam) || kalemler.reduce((a,k)=>{
+      const tut = toNum(k.miktar)*toNum(k.birim_fiyat);
+      const oran = toNum(k.kdv_oran);
+      return a + (oran ? (tut*oran/100) : 0);
+    },0);
+    const genelToplam = toNum(f.genel_toplam) || (araToplam + kdvToplam);
+    const odenen = toNum(f.odenen_tutar) || 0;
+    const kalan = Math.max(0, genelToplam - odenen);
+
+    if(elTitle){
+      const musteriAd = (c?.ad || c?.unvan || 'Müşteri');
+      elTitle.textContent = `Fatura Detayı • ${f.numara || ''} • ${musteriAd}`;
+    }
+    if(elMeta){
+      const musteriAd = (c?.ad || c?.unvan || '-');
+      const tel = (c?.tel || '-');
+      elMeta.innerHTML = `
+        <div><b>Müşteri:</b> ${escapeHtml(musteriAd)} • <b>Tel:</b> ${escapeHtml(tel)}</div>
+        <div><b>Tarih:</b> ${formatTRDateTime(f.tarih)} • <b>Para Birimi:</b> ${escapeHtml(pb)}</div>
+      `;
+    }
+
+    if(elBody){
+      elBody.innerHTML = '';
+      kalemler.forEach(k => {
+        const urunAd = k.urun_ad_snapshot || (URUNLER.find(u=>u.id==k.urun_id)?.ad) || '-';
+        const miktar = toNum(k.miktar);
+        const bf = toNum(k.birim_fiyat);
+        const tutar = toNum(k.satir_tutar) || (miktar*bf);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(urunAd)}</td>
+          <td style="text-align:right;">${miktar}</td>
+          <td style="text-align:right;">${fmt(bf, pb)}</td>
+          <td style="text-align:right;">${fmt(tutar, pb)}</td>
+        `;
+        elBody.appendChild(tr);
+      });
+    }
+
+    if(elAra)   elAra.textContent   = fmt(araToplam, pb);
+    if(elKdv)   elKdv.textContent   = fmt(kdvToplam, pb);
+    if(elGenel) elGenel.textContent = fmt(genelToplam, pb);
+    if(elOdenen)elOdenen.textContent= fmt(odenen, pb);
+    if(elKalan) elKalan.textContent = fmt(kalan, pb);
+
+    modal.classList.remove('hide');
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Fatura detayı açılamadı", "error");
+  }
+};
+
+window.closeFaturaDetayModal = () => {
+  const modal = document.getElementById('modalFaturaDetay');
+  if(modal) modal.classList.add('hide');
+};
+
+window.editFaturaFromDetay = async () => {
+  if(!CURRENT_FATURA_DETAY_ID) return;
+  window.closeFaturaDetayModal();
+  // Fatura tabına geç
+  const btn = document.querySelector('button[data-tab="faturalar"]');
+  if(btn) btn.click();
+  // edit
+  if(window.editFatura) await window.editFatura(CURRENT_FATURA_DETAY_ID);
+};
+
+window.downloadFaturaPdfFromDetay = async () => {
+  try{
+    if(!CURRENT_FATURA_DETAY_ID) return;
+
+    let f = FATURALAR.find(x => x.id == CURRENT_FATURA_DETAY_ID);
+    if(!f){
+      const { data, error } = await supa.from('faturalar').select('*').eq('id', CURRENT_FATURA_DETAY_ID).single();
+      if(error) throw error;
+      f = data;
+    }
+    const c = CARILER.find(x => x.id == f.cari_id) || null;
+
+    let kalemler = (TUM_KALEMLER||[]).filter(k => k.fatura_id == CURRENT_FATURA_DETAY_ID);
+    if(!kalemler.length){
+      const { data } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', CURRENT_FATURA_DETAY_ID);
+      kalemler = data || [];
+    }
+
+    const pb = (f.para_birimi || 'TL');
+    const araToplam = toNum(f.ara_toplam) || kalemler.reduce((a,k)=>a + (toNum(k.miktar)*toNum(k.birim_fiyat)),0);
+    const kdvToplam = toNum(f.kdv_toplam) || 0;
+    const genelToplam = toNum(f.genel_toplam) || (araToplam + kdvToplam);
+    const odenen = toNum(f.odenen_tutar) || 0;
+    const kalan = Math.max(0, genelToplam - odenen);
+
+    const musteriAd = (c?.ad || c?.unvan || '');
+    const tel = (c?.tel || '');
+
+    const { jsPDF } = window.jspdf || {};
+    if(!jsPDF) return showToast("PDF kütüphanesi yüklenemedi", "error");
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    doc.setFontSize(14);
+    doc.text(`FATURA • ${f.numara || ''}`, 40, 50);
+
+    doc.setFontSize(10);
+    doc.text(`Müşteri: ${musteriAd}   Tel: ${tel}`, 40, 70);
+    doc.text(`Tarih: ${formatTRDateTime(f.tarih)}   Para Birimi: ${pb}`, 40, 85);
+
+    const body = kalemler.map(k => {
+      const urunAd = k.urun_ad_snapshot || (URUNLER.find(u=>u.id==k.urun_id)?.ad) || '-';
+      const miktar = toNum(k.miktar);
+      const bf = toNum(k.birim_fiyat);
+      const tutar = toNum(k.satir_tutar) || (miktar*bf);
+      return [urunAd, String(miktar), fmt(bf, pb), fmt(tutar, pb)];
+    });
+
+    doc.autoTable({
+      head: [['Ürün', 'Miktar', 'Birim Fiyat', 'Tutar']],
+      body,
+      startY: 105,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [30, 41, 59] }
+    });
+
+    const y = doc.lastAutoTable.finalY + 20;
+    doc.setFontSize(10);
+    doc.text(`Ara Toplam: ${fmt(araToplam, pb)}`, 380, y);
+    doc.text(`KDV Toplam: ${fmt(kdvToplam, pb)}`, 380, y+14);
+    doc.text(`Genel Toplam: ${fmt(genelToplam, pb)}`, 380, y+28);
+    doc.text(`Ödenen: ${fmt(odenen, pb)}`, 380, y+42);
+    doc.text(`Kalan: ${fmt(kalan, pb)}`, 380, y+56);
+
+    doc.save(`Fatura-${f.numara || f.id}.pdf`);
+    showToast("PDF indirildi.", "success");
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "PDF oluşturulamadı", "error");
+  }
+};
+
+window.addTahsilatFromDetay = async () => {
+  try{
+    if(!CURRENT_FATURA_DETAY_ID) return;
+
+    let f = FATURALAR.find(x => x.id == CURRENT_FATURA_DETAY_ID);
+    if(!f){
+      const { data, error } = await supa.from('faturalar').select('*').eq('id', CURRENT_FATURA_DETAY_ID).single();
+      if(error) throw error;
+      f = data;
+    }
+
+    const pb = (f.para_birimi || 'TL');
+    const genelToplam = toNum(f.genel_toplam) || 0;
+    const odenen = toNum(f.odenen_tutar) || 0;
+    const kalan = Math.max(0, genelToplam - odenen);
+
+    if(kalan <= 0){
+      return showToast("Bu faturanın kalan borcu yok.", "info");
+    }
+
+    // hesap seçimi
+    const uygunHesaplar = (HESAPLAR||[]).filter(h => (h.para_birimi || 'TL') === pb);
+    if(!uygunHesaplar.length){
+      return showToast(`Para birimi ${pb} olan kasa hesabı bulunamadı. (Kasa > Hesaplar)`, "warning");
+    }
+
+    const listText = uygunHesaplar.map((h,i)=> `${i+1}) ${h.ad || h.isim || h.id}`).join('\n');
+    const idxStr = prompt(`Tahsilat hangi kasa hesabına eklensin?\n\n${listText}\n\nSeçim (1-${uygunHesaplar.length}):`, "1");
+    if(idxStr === null) return;
+    const idx = Number(idxStr) - 1;
+    const hesap = uygunHesaplar[idx];
+    if(!hesap) return showToast("Geçersiz hesap seçimi", "error");
+
+    const tutarStr = prompt(`Tahsilat tutarı (${pb})\nKalan: ${fmt(kalan,pb)}\n`, String(kalan));
+    if(tutarStr === null) return;
+    const tutar = toNum(tutarStr);
+    if(!(tutar > 0)) return showToast("Geçerli bir tutar girin", "warning");
+    if(tutar > kalan && !confirm("Tutar kalan borçtan büyük. Devam edilsin mi?")) return;
+
+    // 1) kasa hareketi
+    const { error: e1 } = await supa.from('kasa_hareketler').insert({
+      user_id: USER.id,
+      hesap_id: hesap.id,
+      cari_id: f.cari_id,
+      tur: 'tahsilat',
+      tutar,
+      tarih: nowLocalDT(),
+      aciklama: `Fatura tahsilatı: ${f.numara || f.id}`
+    });
+    if(e1) throw e1;
+
+    // 2) faturada odenen güncelle
+    const yeniOdenen = odenen + tutar;
+    const dur = (yeniOdenen >= genelToplam) ? 'odendi' : 'kismi';
+    const { error: e2 } = await supa.from('faturalar').update({
+      odenen_tutar: yeniOdenen,
+      odeme_durumu: dur
+    }).eq('id', f.id);
+    if(e2) throw e2;
+
+    showToast("Tahsilat eklendi.", "success");
+    await fetchAll();
+    // modalı yenile
+    await window.openFaturaDetayModal(f.id);
+    // dashboard yenile
+    renderDash();
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Tahsilat eklenemedi", "error");
+  }
+};
+
+// Basic HTML escape for modal meta
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, (m)=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
+}
+

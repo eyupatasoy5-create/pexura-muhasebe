@@ -84,6 +84,36 @@
         <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
         <div class="card kpi"><div class="label">Net Kasa</div><div class="val" id="dashNakit">0</div></div>
 
+        <!-- Yeni: Bugün / Bu Ay Özet -->
+        <div class="card" style="grid-column: span 6;">
+          <h2>Bugün</h2>
+          <div class="dash-kv">
+            <div class="kv"><span>Satış</span><strong id="dashBugunSatis">0</strong></div>
+            <div class="kv"><span>Tahsilat</span><strong id="dashBugunTahsilat">0</strong></div>
+            <div class="kv"><span>Ödeme</span><strong id="dashBugunOdeme">0</strong></div>
+          </div>
+          <div class="muted" style="margin-top:8px;">Not: Kasa tahsilat/ödeme seçili para birimine göre hesaplanır.</div>
+        </div>
+
+        <div class="card" style="grid-column: span 6;">
+          <h2>Bu Ay</h2>
+          <div class="dash-kv">
+            <div class="kv"><span>Satış</span><strong id="dashBuAySatis">0</strong></div>
+            <div class="kv"><span>Gider</span><strong id="dashBuAyGider">0</strong></div>
+            <div class="kv"><span>Net Kâr</span><strong id="dashBuAyNetKar">0</strong></div>
+          </div>
+          <div class="muted" style="margin-top:8px;">Giderler şu an tek para birimi olarak kaydediliyorsa (genelde TL), net kâr buna göre hesaplanır.</div>
+        </div>
+
+        <div class="card" style="grid-column: span 12;">
+          <h2>En Borçlu 5 Cari</h2>
+          <table>
+            <thead><tr><th>Cari</th><th style="text-align:right;">Bakiye</th><th>Telefon</th></tr></thead>
+            <tbody id="dashEnBorclu"></tbody>
+          </table>
+          <div class="muted" style="margin-top:8px;">Pozitif bakiye: cari borçlu, negatif bakiye: alacaklı.</div>
+        </div>
+
         <div class="card" style="grid-column: span 6;">
           <h2>Kritik Stok</h2>
           <table>
@@ -98,6 +128,34 @@
             <thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead>
             <tbody id="dashSonHareketler"></tbody>
           </table>
+        </div>
+
+        <!-- Yeni: Satış & Kâr İşlem Listesi (Fatura Bazlı) -->
+        <div class="card" style="grid-column: span 12;">
+          <h2>Satış & Kâr (Fatura Bazlı)</h2>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>Fatura No<br><small style="opacity:.7; font-weight:400;">Müşteri</small></th>
+                  <th style="text-align:right;">Satış</th>
+                  <th style="text-align:right;">Kâr</th>
+                  <th style="text-align:right;">Kâr %</th>
+                </tr>
+              </thead>
+              <tbody id="dashSatisKarListe"></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="2" style="text-align:right;">TOPLAM</th>
+                  <th id="dashSatisKarToplamSatis" style="text-align:right;">0</th>
+                  <th id="dashSatisKarToplamKar" style="text-align:right;">0</th>
+                  <th id="dashSatisKarToplamKarYuzde" style="text-align:right;">0%</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div style="margin-top:8px; font-size:12px; color:#94a3b8;">Not: Yukarıdaki liste seçili para birimine göre filtrelenir.</div>
         </div>
 
         <!-- Yeni: Son Ödemeler / Son İadeler -->
@@ -143,9 +201,16 @@
           <!-- Tarih-saat -->
           <input id="fTarih" type="datetime-local"/>
 
-          <select id="fCari"></select>
+          <!-- Hızlı cari arama + son kullanılanlar -->
+          <input id="fCariSearch" placeholder="Müşteri ara (ad / tel)" style="margin-top:10px;"/>
+          <div id="recentCariWrap" class="recent-cari-wrap" style="margin:8px 0 4px;"></div>
 
-          <div style="margin: 15px 0; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+          <div class="row">
+            <select id="fCari" style="flex:1;"></select>
+            <button class="success" type="button" id="btnFaturaYeniCari" onclick="openCariQuickModal()" style="white-space:nowrap;">+ Yeni Müşteri</button>
+          </div>
+
+<div style="margin: 15px 0; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
             <label style="display:flex; align-items:center; gap: 8px; cursor:pointer; color: #22c55e;">
               <input type="checkbox" id="fWhatsappCheck" checked style="width: auto;">WhatsApp Gönder
             </label>
@@ -214,8 +279,13 @@
         </div>
         <div class="card" style="grid-column: span 8;">
           <h2>Cari Listesi</h2>
+          <div class="row" style="justify-content:flex-end; margin: 0 0 8px 0; gap:10px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#94a3b8; font-size:13px;">
+              <input type="checkbox" id="showPasifCariler" style="width:auto;"> Pasifleri göster
+            </label>
+          </div>
           <table>
-            <thead><tr><th>Ünvan / Tel</th><th>Tür</th><th>İşlem</th></tr></thead>
+            <thead><tr><th>Ünvan / Tel</th><th>Bakiye</th><th>Tür</th><th>İşlem</th></tr></thead>
             <tbody id="cariListe"></tbody>
           </table>
         </div>
@@ -346,6 +416,85 @@
 </div>
 
 <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
+
+<!-- QUICK CARİ ADD MODAL (FATURA) -->
+<div id="modalCariQuick" class="modal-overlay hide">
+  <div class="modal-content">
+    <h3 style="margin-top:0;">Yeni Müşteri Ekle</h3>
+    <div class="row">
+      <select id="qCariTur" style="flex:1;">
+        <option value="musteri" selected>Müşteri</option>
+        <option value="tedarikci">Tedarikçi</option>
+      </select>
+      <input id="qCariTel" placeholder="Telefon" style="flex:1;"/>
+    </div>
+    <input id="qCariAd" placeholder="Ünvan / Ad Soyad" />
+    <div class="row" style="justify-content:flex-end; margin-top:10px;">
+      <button class="muted" type="button" onclick="closeCariQuickModal()">Vazgeç</button>
+      <button class="success" type="button" onclick="saveCariQuickModal()">Kaydet</button>
+    </div>
+    <small class="muted">Kaydettikten sonra otomatik olarak faturada seçili olur.</small>
+  </div>
+</div>
+
+
+
+
+<!-- FATURA DETAY MODAL -->
+<div id="modalFaturaDetay" class="modal-overlay hide" onclick="closeFaturaDetayModal()">
+  <div class="modal-content" style="max-width:980px;" onclick="event.stopPropagation()">
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <h3 id="faturaDetayBaslik" style="margin:0;">Fatura Detayı</h3>
+      <button class="muted" type="button" onclick="closeFaturaDetayModal()">Kapat</button>
+    </div>
+
+    <div id="faturaDetayMeta" class="muted" style="margin-top:6px;"></div>
+
+    <div style="overflow:auto; margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Ürün</th>
+            <th style="text-align:right;">Miktar</th>
+            <th style="text-align:right;">Birim Fiyat</th>
+            <th style="text-align:right;">Tutar</th>
+          </tr>
+        </thead>
+        <tbody id="faturaDetayKalemler"></tbody>
+        <tfoot>
+          <tr>
+            <th colspan="3" style="text-align:right;">Ara Toplam</th>
+            <th id="faturaDetayAraToplam" style="text-align:right;">0</th>
+          </tr>
+          <tr>
+            <th colspan="3" style="text-align:right;">KDV Toplam</th>
+            <th id="faturaDetayKdvToplam" style="text-align:right;">0</th>
+          </tr>
+          <tr>
+            <th colspan="3" style="text-align:right;">Genel Toplam</th>
+            <th id="faturaDetayGenelToplam" style="text-align:right;">0</th>
+          </tr>
+          <tr>
+            <th colspan="3" style="text-align:right;">Ödenen</th>
+            <th id="faturaDetayOdenen" style="text-align:right;">0</th>
+          </tr>
+          <tr>
+            <th colspan="3" style="text-align:right;">Kalan</th>
+            <th id="faturaDetayKalan" style="text-align:right;">0</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px;">
+      
+      <button class="muted" type="button" onclick="downloadFaturaPdfFromDetay()">PDF İndir</button>
+      <button class="success" type="button" onclick="addTahsilatFromDetay()">Tahsilat Ekle</button>
+      <button class="info" type="button" onclick="editFaturaFromDetay()">Faturayı Düzenle</button>
+    </div>
+  </div>
+</div>
 
 <!-- IMAGE MODAL -->
 <div id="modalImageView" class="modal-overlay hide" onclick="closeImageModal()">
