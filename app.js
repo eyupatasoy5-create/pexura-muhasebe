@@ -795,16 +795,37 @@ document.getElementById('cariEkleBtn').onclick = async ()=>{
 function getCariBakiyeMap(c){
   // Pozitif = müşteri borçlu, negatif = alacaklı (biz borçluyuz)
   const map = {};
-  // Açılış bakiyesi varsayılan TL kabul edilir
+
+  // Açılış bakiyesi (şu an tek alan olduğu için TL varsayımı)
   const acilis = (toNum(c.acilis_borc) || 0) - (toNum(c.acilis_alacak) || 0);
   if(acilis) map["TL"] = (map["TL"] || 0) + acilis;
 
+  // Faturalar: kalan tutar borç/alacak yönünü belirler
   FATURALAR.filter(f => f.cari_id === c.id).forEach(f=>{
     const cur = f.para_birimi || "TL";
     const kalan = (toNum(f.genel_toplam) || 0) - (toNum(f.odenen_tutar) || 0);
     if(!kalan) return;
-    if(f.tip === "satis") map[cur] = (map[cur] || 0) + kalan;
-    else if(f.tip === "iade") map[cur] = (map[cur] || 0) - kalan;
+    if(normalizeTip(f.tip) === "satis") map[cur] = (map[cur] || 0) + kalan;
+    else if(normalizeTip(f.tip) === "iade") map[cur] = (map[cur] || 0) - kalan;
+  });
+
+  // Kasa hareketleri: tahsilat borcu düşürür, ödeme (tedarikçiye) bizim borcumuzu düşürür → bakiye artar
+  // Para birimi, bağlı kasa hesabının para biriminden alınır (yoksa hareketin para_birimi / TL)
+  const hesapPB = new Map((HESAPLAR || []).map(h => [String(h.id), h.para_birimi || "TL"]));
+
+  (HAREKETLER || []).filter(h => h.cari_id === c.id).forEach(h=>{
+    const pb = hesapPB.get(String(h.hesap_id)) || h.para_birimi || "TL";
+    const tutar = toNum(h.tutar) || 0;
+    if(!tutar) return;
+
+    const tur = (h.tur || "").toLowerCase();
+    if(tur === "tahsilat") {
+      // müşteri ödedi → borç azalır
+      map[pb] = (map[pb] || 0) - tutar;
+    } else if(tur === "odeme") {
+      // biz ödedik → biz borçtan düşer → bakiye artar
+      map[pb] = (map[pb] || 0) + tutar;
+    }
   });
 
   return map;
@@ -827,6 +848,7 @@ function bakiyeHtmlForCari(c){
 
 function renderCariler(){
   cariListe.innerHTML="";
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
   const showPasif = !!document.getElementById('showPasifCariler')?.checked;
   const list = (CARILER||[])
     .filter(c => showPasif ? true : (c.aktif !== false))
@@ -839,7 +861,7 @@ function renderCariler(){
     tr.innerHTML=`
       <td onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
         <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${c.ad}</span><br>
-        <small class="muted">${c.tel||'-'}</small>
+        <small class="muted">${c.tel||'-'}</small>${isMobile?`<div class="mobile-bakiye"><span class="muted">Bakiye:</span> ${bakiyeHtmlForCari(c)}</div>`:""}
       </td>
       <td>${bakiyeHtmlForCari(c)}</td>
       <td><span class="tag">${c.tur}</span>${pasif?` <span class="tag danger">pasif</span>`:''}</td>
