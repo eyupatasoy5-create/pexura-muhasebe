@@ -492,3 +492,10 @@ body.force-mobile main{ padding-bottom: 90px !important; }
   .mobile-bakiye { margin-top: 6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .mobile-bakiye .tag { font-size: 12px; padding: 3px 8px; }
 }
+
+
+/* Dashboard compact scroll table */
+.table-scroll-compact{max-height:260px; overflow:auto; border:1px solid rgba(148,163,184,.15); border-radius:12px;}
+@media (max-width: 768px){
+  .table-scroll-compact{max-height:320px;}
+}

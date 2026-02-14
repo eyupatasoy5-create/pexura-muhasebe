@@ -293,9 +293,10 @@ function calcAgingBuckets(curr='USD'){
   return buckets;
 }
 
-// Dashboard: Satış & Kâr işlem listesi (Fatura Bazlı)
+// Dashboard: Satış & Kâr işlem listesi (Fatura Bazlı) - compact + infinite scroll
 function renderDashSatisKarListesi(curr='USD'){
   const tbody = document.getElementById('dashSatisKarListe');
+  const scroller = document.getElementById('dashSatisKarScroll');
   const elTopSatis = document.getElementById('dashSatisKarToplamSatis');
   const elTopKar = document.getElementById('dashSatisKarToplamKar');
   const elTopKarYuzde = document.getElementById('dashSatisKarToplamKarYuzde');
@@ -318,55 +319,88 @@ function renderDashSatisKarListesi(curr='USD'){
     .slice()
     .sort((a,b)=> new Date(b.tarih) - new Date(a.tarih));
 
-  tbody.innerHTML = '';
+  // Toplamları tüm kayıtlar üzerinden hesapla (liste kaç satır yüklense de aynı kalsın)
   let topSatis = 0;
   let topKar = 0;
-
-  satisFaturalar.slice(0, 50).forEach(f=>{
+  for(const f of satisFaturalar){
     const kalemler = kalemByFatura.get(f.id) || [];
-    let satis = 0;
-    let kar = 0;
     for(const fk of kalemler){
       const miktar = toNum(fk.miktar);
       const bf = toNum(fk.birim_fiyat);
       const alisSnap = toNum(fk.alis_fiyat_snapshot);
-      satis += miktar * bf;
-      kar += (miktar * bf) - (miktar * alisSnap);
+      topSatis += miktar * bf;
+      topKar += (miktar * bf) - (miktar * alisSnap);
     }
-
-    topSatis += satis;
-    topKar += kar;
-
-    const cari = cariById.get(f.cari_id);
-    const musteri = (cari && (cari.ad || cari.unvan || cari.isim || cari.name)) || '-';
-    const karYuzde = satis > 0 ? (kar / satis) * 100 : 0;
-
-    const tr = document.createElement('tr');
-    tr.style.cursor = 'pointer';
-    tr.onclick = ()=> openFaturaDetayModal(f.id);
-
-    tr.innerHTML = `
-      <td>${formatTRDateTime(f.tarih)}</td>
-      <td>
-        ${f.numara || '-'}<br>
-        <small style="opacity:.75;">
-          <a href="javascript:void(0)" onclick="event.stopPropagation(); openEkstre('${f.cari_id}')" style="color:#60a5fa; text-decoration:none;">
-            ${musteri}
-          </a>
-        </small>
-      </td>
-      <td style="text-align:right;">${fmt(satis, curr)}</td>
-      <td style="text-align:right; font-weight:700; color:${kar>=0?'#4ade80':'#ef4444'};">${fmt(kar, curr)}</td>
-      <td style="text-align:right;">${karYuzde.toFixed(2)}%</td>
-    `;
-    tbody.appendChild(tr);
-  });
-
+  }
   elTopSatis.textContent = fmt(topSatis, curr);
   elTopKar.textContent = fmt(topKar, curr);
   if(elTopKarYuzde){
     const pct = topSatis > 0 ? (topKar / topSatis) * 100 : 0;
     elTopKarYuzde.textContent = pct.toFixed(2) + '%';
+  }
+
+  // Infinite scroll: ilk 5, sonra aşağı kaydırdıkça ekle
+  const INITIAL = 5;
+  const PAGE = 15;
+
+  tbody.innerHTML = '';
+  let loaded = 0;
+
+  function appendRows(count){
+    const slice = satisFaturalar.slice(loaded, loaded + count);
+    for(const f of slice){
+      const kalemler = kalemByFatura.get(f.id) || [];
+      let satis = 0;
+      let kar = 0;
+      for(const fk of kalemler){
+        const miktar = toNum(fk.miktar);
+        const bf = toNum(fk.birim_fiyat);
+        const alisSnap = toNum(fk.alis_fiyat_snapshot);
+        satis += miktar * bf;
+        kar += (miktar * bf) - (miktar * alisSnap);
+      }
+
+      const cari = cariById.get(f.cari_id);
+      const musteri = (cari && (cari.ad || cari.unvan || cari.isim || cari.name)) || '-';
+      const karYuzde = satis > 0 ? (kar / satis) * 100 : 0;
+
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.onclick = ()=> openFaturaDetayModal(f.id);
+
+      tr.innerHTML = `
+        <td>${formatTRDateTime(f.tarih)}</td>
+        <td>
+          ${f.numara || '-'}<br>
+          <small style="opacity:.75;">
+            <a href="javascript:void(0)" onclick="event.stopPropagation(); openEkstre('${f.cari_id}')" style="color:#60a5fa; text-decoration:none;">
+              ${musteri}
+            </a>
+          </small>
+        </td>
+        <td style="text-align:right;">${fmt(satis, curr)}</td>
+        <td style="text-align:right; font-weight:700; color:${kar>=0?'#4ade80':'#ef4444'};">${fmt(kar, curr)}</td>
+        <td style="text-align:right;">${karYuzde.toFixed(2)}%</td>
+      `;
+      tbody.appendChild(tr);
+    }
+    loaded += slice.length;
+  }
+
+  // reset scroll position
+  if(scroller){ scroller.scrollTop = 0; }
+
+  appendRows(INITIAL);
+
+  // bağla (her render'da güncelle)
+  const target = scroller || tbody.parentElement;
+  if(target){
+    target.onscroll = () => {
+      const nearBottom = (target.scrollTop + target.clientHeight) >= (target.scrollHeight - 40);
+      if(nearBottom && loaded < satisFaturalar.length){
+        appendRows(PAGE);
+      }
+    };
   }
 }
 
