@@ -202,7 +202,23 @@ async function loadSession(){
     authUserMail.textContent = `${USER.email} (${USER_ROLE.toUpperCase()})`;
 
     applyRolePermissions();
-    await fetchAll();
+
+    // PERF: show cached data instantly (if any), then load critical dashboard data first.
+    // Important: do NOT block first paint by fetching large customer/product lists.
+    const hadCache = loadCache();
+    if(hadCache){
+      fillSelects();
+      renderAll();
+    }else{
+      renderAll();
+    }
+
+    // Fast paint: load only the small datasets needed for dashboard cards/tables.
+    // Other heavy lists (customers/products) will be hydrated in background.
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+
+    // One-time background full sync (large dropdowns etc.)
+    scheduleFullSync();
   }
 }
 function applyRolePermissions(){
@@ -248,6 +264,191 @@ async function fetchAll(){
   renderAll();
   runStartupAlerts(); // madde 12
 }
+
+// ---------- PERF: fast initial load (dashboard-first) ----------
+let FAST_FETCH_INFLIGHT = false;
+async function fetchAllFast(){
+  if(FAST_FETCH_INFLIGHT) return;
+  FAST_FETCH_INFLIGHT = true;
+  // Lightweight fetches to paint UI quickly.
+  // DO NOT block on large master lists (cariler/urunler) because they grow fast and slow down login.
+  // 1) Fetch only what dashboard needs to look alive.
+  try{
+    await Promise.all([
+      fetchHesaplarFast(),
+      fetchFaturalarFast(),
+      fetchHareketlerFast(),
+      fetchGGFast()
+    ]);
+    fillSelects();
+    renderAll();
+
+    // 2) Hydrate master lists in background (dropdowns + customers/products pages).
+    // When finished, re-render once.
+    Promise.all([
+      fetchCarilerFast(),
+      fetchUrunlerFast()
+    ]).then(()=>{
+      fillSelects();
+      renderAll();
+      saveCache();
+    }).catch(()=>{});
+  }finally{
+    FAST_FETCH_INFLIGHT = false;
+  }
+}
+
+async function fetchCarilerFast(){
+  const { data } = await supa
+    .from("cariler")
+    .select("id,ad,tel,tur,acilis_borc,acilis_alacak,company_id,aktif,created_at")
+    .order("ad")
+    .limit(500);
+  CARILER = data || [];
+}
+
+async function fetchUrunlerFast(){
+  const { data } = await supa
+    .from("urunler")
+    .select("id,kod,ad,birim,alis_fiyat,satis_fiyat,kdv_oran,min_stok,stok_miktar,para_birimi,company_id,created_at,resim_url")
+    .order("ad")
+    .limit(500);
+  URUNLER = data || [];
+}
+
+async function fetchHesaplarFast(){
+  const { data } = await supa
+    .from("kasa_hesaplar")
+    .select("id,ad,para_birimi,bakiye,company_id,created_at")
+    .order("ad")
+    .limit(200);
+  HESAPLAR = data || [];
+}
+
+async function fetchHareketlerFast(){
+  const { data } = await supa
+    .from("kasa_hareketler")
+    .select("id,tarih,tip,tutar,aciklama,kasa_hesap_id,para_birimi,company_id,created_at,cari_id,fatura_id")
+    .order("tarih",{ascending:false})
+    .limit(200);
+  HAREKETLER = data || [];
+}
+
+async function fetchGGFast(){
+  const { data } = await supa
+    .from("gelir_gider")
+    .select("id,tarih,tur,tutar,aciklama,para_birimi,company_id,created_at")
+    .order("tarih",{ascending:false})
+    .limit(200);
+  GG = data || [];
+}
+
+async function fetchFaturalarFast(){
+  const { data } = await supa
+    .from("faturalar")
+    .select("id,tarih,numara,tip,cari_id,para_birimi,genel_toplam,odenen_tutar,odeme_durumu,company_id,created_at, cariler(ad,tel)")
+    .order("tarih",{ascending:false})
+    .limit(80);
+  FATURALAR = data || [];
+}
+
+
+// -------- PERF & CACHING -----------------------------------
+let FULL_SYNC_SCHEDULED = false;
+
+function saveCache(){
+  try{
+    const payload = {
+      ts: Date.now(),
+      cariler: CARILER,
+      urunler: URUNLER,
+      hesaplar: HESAPLAR
+    };
+    localStorage.setItem("pexura_cache_v1", JSON.stringify(payload));
+  }catch(e){
+    // ignore quota / private mode
+  }
+}
+
+function loadCache(){
+  try{
+    const raw = localStorage.getItem("pexura_cache_v1");
+    if(!raw) return false;
+    const payload = JSON.parse(raw);
+    if(!payload || !payload.ts) return false;
+    // 24 saatten eskiyse kullanma
+    if(Date.now() - payload.ts > 24*60*60*1000) return false;
+    if(Array.isArray(payload.cariler)) CARILER = payload.cariler;
+    if(Array.isArray(payload.urunler)) URUNLER = payload.urunler;
+    if(Array.isArray(payload.hesaplar)) HESAPLAR = payload.hesaplar;
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+async function fetchAllFull(){
+  // Full sync (pagination) - runs once in background
+  const [cariler, urunler, hesaplar] = await Promise.all([
+    fetchAllRows("cariler", "id,ad,tel,tur,acilis_borc,acilis_alacak,company_id,aktif,created_at", "ad"),
+    fetchAllRows("urunler", "id,kod,ad,birim,alis_fiyat,satis_fiyat,kdv_oran,min_stok,stok_miktar,para_birimi,company_id,created_at,resim_url", "ad"),
+    fetchAllRows("kasa_hesaplar", "id,ad,para_birimi,bakiye,company_id,created_at", "ad")
+  ]);
+  CARILER = cariler;
+  URUNLER = urunler;
+  HESAPLAR = hesaplar;
+  // Diğer büyük tabloları full çekmiyoruz; dashboard için limitli yeterli
+  fillSelects();
+  renderAll();
+  saveCache();
+}
+
+async function fetchAllRows(table, selectStr, orderCol){
+  const pageSize = 1000;
+  let from = 0;
+  let out = [];
+  while(true){
+    const to = from + pageSize - 1;
+    const { data, error } = await supa.from(table).select(selectStr).order(orderCol).range(from, to);
+    if(error){
+      console.warn("fetchAllRows error", table, error);
+      break;
+    }
+    if(!data || data.length===0) break;
+    out = out.concat(data);
+    if(data.length < pageSize) break;
+    from += pageSize;
+    // Hard safety cap
+    if(from > 10000) break;
+  }
+  return out;
+}
+
+function scheduleFullSync(){
+  // Defer heavier full sync so first paint stays fast
+  if(FULL_SYNC_SCHEDULED) return;
+  FULL_SYNC_SCHEDULED = true;
+
+  const run = async () => {
+    try{
+      await fetchAllFull();
+    }catch(e){
+      console.warn("Full sync failed:", e);
+    }finally{
+      FULL_SYNC_SCHEDULED = false;
+    }
+  };
+
+  // Important: On GitHub Pages + remote Supabase, aggressive background sync can
+  // make the UI feel "late". We delay more so the first screen becomes usable.
+  if("requestIdleCallback" in window){
+    requestIdleCallback(run, {timeout: 10000});
+  }else{
+    setTimeout(run, 8000);
+  }
+}
+// --------------------------------------------------------------
+
 
 async function fetchTumKalemler() {
   const { data } = await supa.from('fatura_kalemler').select('*');
@@ -1448,7 +1649,11 @@ function renderFaturalar(){
       if(!confirm("Fatura silinsin mi?")) return;
       const id = btn.dataset.del;
       await deleteHistoryItem('fatura', id);
-      await fetchAll();
+      // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     };
   });
 }
@@ -2319,7 +2524,11 @@ window.clearAllHistory = async () => {
     try{ await _deleteAllFrom('system_logs'); }catch(e){}
 
     showToast("Tüm geçmiş temizlendi.", "success");
-    await fetchAll();
+    // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     renderAll();
     if(window.renderHistory) window.renderHistory();
   }catch(e){
@@ -2346,7 +2555,11 @@ window.executeRollback = async () => {
 
     showToast("Rollback tamamlandı.", "success");
     if(modal) modal.classList.add('hide');
-    await fetchAll();
+    // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     renderAll();
     if(window.renderHistory) window.renderHistory();
   }catch(e){
@@ -2398,7 +2611,11 @@ async function doBackup(){
   try{
     if(!USER) return showToast("Yedek almak için önce giriş yap.", "warning");
     // en güncel veri için çek
-    await fetchAll();
+    // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     const payload = buildBackupPayload();
     const stamp = new Date().toISOString().replace(/[:.]/g,'-');
     _downloadTextFile(`pexura-yedek-${stamp}.json`, JSON.stringify(payload, null, 2));
@@ -2469,7 +2686,11 @@ async function doRestoreFromJsonText(text){
     }
 
     showToast("Yükleme tamamlandı.", "success");
-    await fetchAll();
+    // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     renderAll();
     if(window.renderHistory) window.renderHistory();
   }catch(e){
@@ -2809,7 +3030,11 @@ window.addTahsilatFromDetay = async () => {
     if(e2) throw e2;
 
     showToast("Tahsilat eklendi.", "success");
-    await fetchAll();
+    // PERF: show cached data instantly, then refresh fast data
+    const hadCache = loadCache();
+    if(hadCache){ fillSelects(); renderAll(); }
+    fetchAllFast().then(()=>{ saveCache(); }).catch(()=>{});
+    scheduleFullSync();
     // modalı yenile
     await window.openFaturaDetayModal(f.id);
     // dashboard yenile
