@@ -107,7 +107,7 @@
 
         <div class="card" style="grid-column: span 12;">
           <h2>En Borçlu 5 Cari</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Cari</th><th style="text-align:right;">Bakiye</th><th>Telefon</th></tr></thead>
             <tbody id="dashEnBorclu"></tbody>
           </table>
@@ -116,7 +116,7 @@
 
         <div class="card" style="grid-column: span 6;">
           <h2>Kritik Stok</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Ürün</th><th>Mevcut</th><th>Min</th></tr></thead>
             <tbody id="dashKritikListe"></tbody>
           </table>
@@ -124,7 +124,7 @@
 
         <div class="card" style="grid-column: span 6;">
           <h2>Son İşlemler</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead>
             <tbody id="dashSonHareketler"></tbody>
           </table>
@@ -134,7 +134,7 @@
         <div class="card" style="grid-column: span 12;">
           <h2>Satış & Kâr (Fatura Bazlı)</h2>
           <div id="dashSatisKarScroll" class="table-scroll-compact">
-            <table>
+            <table class="responsive-table">
               <thead>
                 <tr>
                   <th>Tarih</th>
@@ -161,7 +161,7 @@
         <!-- Yeni: Son Ödemeler / Son İadeler -->
         <div class="card" style="grid-column: span 6;">
           <h2>Son Ödemeler</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Tarih</th><th>Müşteri</th><th>Tutar</th></tr></thead>
             <tbody id="dashOdemeler"></tbody>
           </table>
@@ -169,7 +169,7 @@
 
         <div class="card" style="grid-column: span 6;">
           <h2>Son İadeler</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Tarih</th><th>Müşteri</th><th>Tutar</th></tr></thead>
             <tbody id="dashIadeler"></tbody>
           </table>
@@ -242,14 +242,14 @@
 
         <div class="card" style="grid-column: span 7;">
           <h2>Kalemler</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Ürün</th><th>Miktar</th><th>Alış</th><th>Satış</th><th>Tutar</th><th>Kâr</th><th></th></tr></thead>
             <tbody id="kalemListe"></tbody>
           </table>
           <br>
 
           <h2>Geçmiş Faturalar</h2>
-          <table>
+          <table class="responsive-table">
             <thead>
               <tr>
                 <th>Tarih</th><th>Müşteri</th><th>Tip</th><th>Tutar</th><th>İşlem</th>
@@ -284,7 +284,7 @@
               <input type="checkbox" id="showPasifCariler" style="width:auto;"> Pasifleri göster
             </label>
           </div>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Ünvan / Tel</th><th>Bakiye</th><th>Tür</th><th>İşlem</th></tr></thead>
             <tbody id="cariListe"></tbody>
           </table>
@@ -330,7 +330,7 @@
 
         <div class="card" style="grid-column: span 8;">
           <h2>Ürünler</h2>
-          <table>
+          <table class="responsive-table">
             <thead><tr><th>Resim</th><th>Kod</th><th>Ad</th><th>Stok</th><th>Fiyat</th><th>İşlem</th></tr></thead>
             <tbody id="uListe"></tbody>
           </table>
@@ -366,8 +366,8 @@
         </div>
 
         <div class="card" style="grid-column: span 7;">
-          <h2>Hesaplar</h2><table><tbody id="hesapListe"></tbody></table><br>
-          <h2>Hareketler</h2><table><tbody id="hareketListe"></tbody></table>
+          <h2>Hesaplar</h2><table class="responsive-table"><tbody id="hesapListe"></tbody></table><br>
+          <h2>Hareketler</h2><table class="responsive-table"><tbody id="hareketListe"></tbody></table>
         </div>
       </div>
     </section>
@@ -384,7 +384,7 @@
            <input id="ggTarih" type="date"/>
            <button class="primary" style="margin-top:10px" id="ggEkleBtn">Ekle</button>
          </div>
-         <div class="card" style="grid-column: span 8;"><table><tbody id="ggListe"></tbody></table></div>
+         <div class="card" style="grid-column: span 8;"><table class="responsive-table"><tbody id="ggListe"></tbody></table></div>
       </div>
     </section>
 
@@ -637,6 +637,9 @@
 
   </div>
 </div>
+
+<!-- Mobil hızlı aksiyon butonu (FAB) -->
+<button id="fab" class="fab hide" type="button" aria-label="Yeni" title="Yeni">+</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>

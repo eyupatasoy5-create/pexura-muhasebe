@@ -120,6 +120,50 @@ function setAppView(mode) {
 }
 
 /* =========================================================
+   MOBILE UX: FAB (Floating Action Button)
+========================================================= */
+function isMobileUI(){
+  return document.body.classList.contains('force-mobile') || window.matchMedia('(max-width: 768px)').matches;
+}
+
+function focusIfExists(id){
+  const el = document.getElementById(id);
+  if(!el) return false;
+  el.focus({ preventScroll:false });
+  return true;
+}
+
+function updateFab(tab){
+  const fab = document.getElementById('fab');
+  if(!fab) return;
+
+  if(!isMobileUI() || !USER){
+    fab.classList.add('hide');
+    return;
+  }
+
+  const map = {
+    faturalar: { text: '+', title: 'Yeni Fatura', action: ()=>{ window.scrollTo({top:0, behavior:'smooth'}); setTimeout(()=> focusIfExists('fCariSearch') || focusIfExists('fNo'), 250); } },
+    cariler:   { text: '+', title: 'Yeni Cari',   action: ()=>{ window.scrollTo({top:0, behavior:'smooth'}); setTimeout(()=> focusIfExists('cariAd'), 250); } },
+    urunler:   { text: '+', title: 'Yeni Ürün',   action: ()=>{ window.scrollTo({top:0, behavior:'smooth'}); setTimeout(()=> focusIfExists('uAd'), 250); } },
+    kasa:      { text: '+', title: 'Yeni İşlem',  action: ()=>{ window.scrollTo({top:0, behavior:'smooth'}); setTimeout(()=> focusIfExists('kTutar') || focusIfExists('hAd'), 250); } },
+    gelirgider:{ text: '+', title: 'Yeni Kayıt',  action: ()=>{ window.scrollTo({top:0, behavior:'smooth'}); setTimeout(()=> focusIfExists('ggKat') || focusIfExists('ggTutar'), 250); } },
+  };
+
+  const conf = map[tab];
+  if(!conf){
+    fab.classList.add('hide');
+    return;
+  }
+
+  fab.textContent = conf.text;
+  fab.title = conf.title;
+  fab.setAttribute('aria-label', conf.title);
+  fab.onclick = conf.action;
+  fab.classList.remove('hide');
+}
+
+/* =========================================================
    STOK GÜNCELLEME + STOK LOG (madde 3)
 ========================================================= */
 async function logStockMove({urunId, degisim, tur="manual", kaynak=null, kaynak_id=null, aciklama=null}){
@@ -369,8 +413,8 @@ function renderDashSatisKarListesi(curr='USD'){
       tr.onclick = ()=> openFaturaDetayModal(f.id);
 
       tr.innerHTML = `
-        <td>${formatTRDateTime(f.tarih)}</td>
-        <td>
+        <td data-label="Tarih">${formatTRDateTime(f.tarih)}</td>
+        <td data-label="Fatura / Müşteri">
           ${f.numara || '-'}<br>
           <small style="opacity:.75;">
             <a href="javascript:void(0)" onclick="event.stopPropagation(); openEkstre('${f.cari_id}')" style="color:#60a5fa; text-decoration:none;">
@@ -378,9 +422,9 @@ function renderDashSatisKarListesi(curr='USD'){
             </a>
           </small>
         </td>
-        <td style="text-align:right;">${fmt(satis, curr)}</td>
-        <td style="text-align:right; font-weight:700; color:${kar>=0?'#4ade80':'#ef4444'};">${fmt(kar, curr)}</td>
-        <td style="text-align:right;">${karYuzde.toFixed(2)}%</td>
+        <td data-label="Satış" style="text-align:right;">${fmt(satis, curr)}</td>
+        <td data-label="Kâr" style="text-align:right; font-weight:700; color:${kar>=0?'#4ade80':'#ef4444'};">${fmt(kar, curr)}</td>
+        <td data-label="Kâr %" style="text-align:right;">${karYuzde.toFixed(2)}%</td>
       `;
       tbody.appendChild(tr);
     }
@@ -441,7 +485,7 @@ function renderDash(){
   kritikListe.innerHTML = "";
   URUNLER.forEach(u => {
     if(Number(u.stok_miktar) <= Number(u.min_stok)){
-      kritikListe.innerHTML += `<tr><td>${u.ad}</td><td><span style="color:red;font-weight:bold">${u.stok_miktar}</span></td><td>${u.min_stok}</td></tr>`;
+      kritikListe.innerHTML += `<tr><td data-label="Ürün">${u.ad}</td><td data-label="Mevcut"><span style="color:red;font-weight:bold">${u.stok_miktar}</span></td><td data-label="Min">${u.min_stok}</td></tr>`;
     }
   });
 
@@ -459,7 +503,7 @@ function renderDash(){
   const sonHareketler = document.getElementById('dashSonHareketler');
   sonHareketler.innerHTML = "";
   combinedMoves.slice(0, 5).forEach(m => {
-    sonHareketler.innerHTML += `<tr><td>${formatTRDateTime(m.tarih)}</td><td><span class="tag">${m.tur}</span></td><td>${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
+    sonHareketler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(m.tarih)}</td><td data-label="Tür"><span class="tag">${m.tur}</span></td><td data-label="Tutar">${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
   });
 
   // Son Ödemeler
@@ -471,7 +515,7 @@ function renderDash(){
       .slice(0,10)
       .forEach(h=>{
         const cari = CARILER.find(c=>c.id==h.cari_id);
-        dashOdemeler.innerHTML += `<tr><td>${formatTRDateTime(h.tarih)}</td><td>${cari?.ad||'-'}</td><td>${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td></tr>`;
+        dashOdemeler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(h.tarih)}</td><td data-label="Müşteri">${cari?.ad||'-'}</td><td data-label="Tutar">${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td></tr>`;
       });
   }
 
@@ -554,7 +598,7 @@ function renderDash(){
       .slice(0,10)
       .forEach(f=>{
         const cari = CARILER.find(c=>c.id==f.cari_id);
-        dashIadeler.innerHTML += `<tr><td>${formatTRDateTime(f.tarih)}</td><td>${cari?.ad||'-'}</td><td>${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
+        dashIadeler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(f.tarih)}</td><td data-label="Müşteri">${cari?.ad||'-'}</td><td data-label="Tutar">${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
       });
   }
 
@@ -893,13 +937,13 @@ function renderCariler(){
     const pasif = (c.aktif === false);
     const tr=document.createElement("tr");
     tr.innerHTML=`
-      <td onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
+      <td data-label="Müşteri" onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
         <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${c.ad}</span><br>
         <small class="muted">${c.tel||'-'}</small>${isMobile?`<div class="mobile-bakiye"><span class="muted">Bakiye:</span> ${bakiyeHtmlForCari(c)}</div>`:""}
       </td>
-      <td>${bakiyeHtmlForCari(c)}</td>
-      <td><span class="tag">${c.tur}</span>${pasif?` <span class="tag danger">pasif</span>`:''}</td>
-      <td>
+      <td data-label="Bakiye">${bakiyeHtmlForCari(c)}</td>
+      <td data-label="Tür"><span class="tag">${c.tur}</span>${pasif?` <span class="tag danger">pasif</span>`:''}</td>
+      <td data-label="İşlem">
         <div class="btn-group">
           <button class="info" onclick="openEkstre('${c.id}')">Ekstre</button>
           <button class="warning" onclick="editCari('${c.id}')">Düzenle</button>
@@ -1015,12 +1059,12 @@ function renderUrunler(){
       : `<div style="width:250px;height:250px;background:#334155;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#94a3b8;border:3px dashed #475569;text-align:center;">Resim<br>Yok</div>`;
     const tr=document.createElement("tr");
     tr.innerHTML=`
-      <td style="padding: 20px;">${imgHtml}</td>
-      <td style="font-size:16px;">${u.kod||""}</td>
-      <td style="font-weight:bold;font-size:18px;">${u.ad} ${krit?'<br><span class="tag" style="background:red;color:white;margin-top:5px">KRİTİK</span>':""}</td>
-      <td style="font-size:16px;">${u.stok_miktar} ${u.birim||""}</td>
-      <td style="font-size:18px;color:#4ade80;font-weight:bold;">${fmt(u.satis_fiyat, u.para_birimi)}</td>
-      <td><div style="display:flex;gap:10px;align-items:center;height:250px;">${editBtn}${delBtn}</div></td>`;
+      <td data-label="Resim" style="padding: 20px;">${imgHtml}</td>
+      <td data-label="Kod" style="font-size:16px;">${u.kod||""}</td>
+      <td data-label="Ad" style="font-weight:bold;font-size:18px;">${u.ad} ${krit?'<br><span class="tag" style="background:red;color:white;margin-top:5px">KRİTİK</span>':""}</td>
+      <td data-label="Stok" style="font-size:16px;">${u.stok_miktar} ${u.birim||""}</td>
+      <td data-label="Fiyat" style="font-size:18px;color:#4ade80;font-weight:bold;">${fmt(u.satis_fiyat, u.para_birimi)}</td>
+      <td data-label="İşlem"><div style="display:flex;gap:10px;align-items:center;height:250px;">${editBtn}${delBtn}</div></td>`;
     uListe.appendChild(tr);
   });
 
@@ -1121,13 +1165,13 @@ function renderKalemler(){
     const kar = calcLineProfit(s.alis_snapshot, s.birim_fiyat, s.miktar);
     const tr=document.createElement("tr");
     tr.innerHTML=`
-      <td>${s.urun_ad}</td>
-      <td>${s.miktar}</td>
-      <td>${fmt(s.alis_snapshot, fPara.value)}</td>
-      <td>${fmt(s.birim_fiyat, fPara.value)}</td>
-      <td>${fmt(s.satir_tutar, fPara.value)}</td>
-      <td><span style="color:${kar>=0?'#4ade80':'#fca5a5'}; font-weight:700;">${fmt(kar, fPara.value)}</span></td>
-      <td><button class="danger" data-i="${i}">X</button></td>`;
+      <td data-label="Ürün">${s.urun_ad}</td>
+      <td data-label="Miktar">${s.miktar}</td>
+      <td data-label="Alış">${fmt(s.alis_snapshot, fPara.value)}</td>
+      <td data-label="Satış">${fmt(s.birim_fiyat, fPara.value)}</td>
+      <td data-label="Tutar">${fmt(s.satir_tutar, fPara.value)}</td>
+      <td data-label="Kâr"><span style="color:${kar>=0?'#4ade80':'#fca5a5'}; font-weight:700;">${fmt(kar, fPara.value)}</span></td>
+      <td data-label="İşlem"><button class="danger" data-i="${i}">X</button></td>`;
     kalemListe.appendChild(tr);
   });
 
@@ -1380,11 +1424,11 @@ function renderFaturalar(){
     const tipText = normalizeTip(f.tip)==='satis' ? 'Satış' : 'İade';
 
     tr.innerHTML=`
-      <td>${formatTRDateTime(f.tarih)}</td>
-      <td>${cariAd}</td>
-      <td><span class="tag">${tipText}</span></td>
-      <td>${fmt(f.genel_toplam, f.para_birimi)}</td>
-      <td>
+      <td data-label="Tarih">${formatTRDateTime(f.tarih)}</td>
+      <td data-label="Müşteri">${cariAd}</td>
+      <td data-label="Tip"><span class="tag">${tipText}</span></td>
+      <td data-label="Toplam">${fmt(f.genel_toplam, f.para_birimi)}</td>
+      <td data-label="İşlem">
         <div class="btn-group">
           <button class="primary" data-detay="${f.id}">Detay</button>
           <button class="info" data-pdf="${f.id}">PDF</button>
@@ -1524,11 +1568,11 @@ function renderHareketler(){
   HAREKETLER.forEach(h=>{
     const tr = document.createElement("tr");
     tr.innerHTML=`
-      <td>${formatTRDateTime(h.tarih)}</td>
-      <td><span class="tag">${h.tur}</span></td>
-      <td>${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td>
-      <td>${h.aciklama || ''}</td>
-      <td>
+      <td data-label="Tarih">${formatTRDateTime(h.tarih)}</td>
+      <td data-label="Tür"><span class="tag">${h.tur}</span></td>
+      <td data-label="Tutar">${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td>
+      <td data-label="Açıklama">${h.aciklama || ''}</td>
+      <td data-label="İşlem">
         <button class="warning" style="padding:4px 8px; font-size:11px;" data-edit="${h.id}">Düzenle</button>
         <button class="danger" style="padding:4px 8px; font-size:11px;" data-del="${h.id}">Sil</button>
       </td>`;
@@ -1591,9 +1635,11 @@ function renderGG(){
   GG.forEach(g=>{
     const tr = document.createElement("tr");
     tr.innerHTML=`
-      <td>${formatTRDateTime(g.tarih)}</td><td>${g.tur}</td><td>${fmt(g.tutar)}</td>
-      <td>${g.aciklama||''}</td>
-      <td>
+      <td data-label="Tarih">${formatTRDateTime(g.tarih)}</td>
+      <td data-label="Tür">${g.tur}</td>
+      <td data-label="Tutar">${fmt(g.tutar)}</td>
+      <td data-label="Açıklama">${g.aciklama||''}</td>
+      <td data-label="İşlem">
         <div class="btn-group">
           <button class="warning" style="padding:4px;font-size:10px" data-edit="${g.id}">Düzenle</button>
           <button class="danger" style="padding:4px;font-size:10px" data-del="${g.id}">Sil</button>
@@ -1722,6 +1768,9 @@ document.querySelectorAll(".navbtn").forEach(b => {
     const targetTab = document.getElementById("tab-" + b.dataset.tab);
     if(targetTab) targetTab.classList.remove("hide");
     if(b.dataset.tab === 'gecmis') renderHistory(); 
+
+    // mobile FAB
+    updateFab(b.dataset.tab);
   };
 });
 

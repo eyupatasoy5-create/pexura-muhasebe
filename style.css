@@ -16,6 +16,9 @@
   
   --radius: 8px;          
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+  /* iOS safe area (fallback: 0px) */
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -113,6 +116,10 @@ nav button.navbtn {
   transition: all 0.2s ease;
   margin: 0;
 }
+
+/* Nav: icon + label layout */
+.nav-ico{ display:inline-flex; align-items:center; justify-content:center; width: 22px; height: 22px; font-size: 18px; }
+.nav-lbl{ display:inline-block; }
 
 nav button.navbtn:hover {
   background: rgba(255,255,255,0.02);
@@ -408,7 +415,7 @@ body.force-desktop .row { flex-direction: row !important; }
   nav{
     position: fixed !important;
     left: 0; right: 0; bottom: 0; top: auto !important;
-    height: 64px !important;
+    height: calc(64px + var(--safe-b)) !important;
     flex-direction: row !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
@@ -425,8 +432,14 @@ body.force-desktop .row { flex-direction: row !important; }
     border-bottom: none;
     border-right: 1px solid rgba(255,255,255,0.06);
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 11px;
+    flex-direction: column;
+    gap: 4px;
   }
+
+  /* Mobilde label daha küçük, ikon öne çıksın */
+  .nav-ico{ font-size: 20px; width: 24px; height: 24px; }
+  .nav-lbl{ font-size: 10px; line-height: 1.1; opacity: .9; }
   nav button.navbtn:hover{ padding-left: 12px; } /* disable hover shift */
   nav button.navbtn.active{
     border-right: 1px solid rgba(255,255,255,0.06);
@@ -436,7 +449,7 @@ body.force-desktop .row { flex-direction: row !important; }
   /* Main content spacing so bottom nav doesn't cover */
   main{
     padding: 14px !important;
-    padding-bottom: 90px !important;
+    padding-bottom: calc(96px + var(--safe-b)) !important;
     overflow-x: hidden;
   }
 
@@ -461,7 +474,7 @@ body.force-desktop .row { flex-direction: row !important; }
 body.force-mobile nav{
   position: fixed !important;
   left: 0; right: 0; bottom: 0; top: auto !important;
-  height: 64px !important;
+  height: calc(64px + var(--safe-b)) !important;
   flex-direction: row !important;
   overflow-x: auto !important;
   overflow-y: hidden !important;
@@ -480,7 +493,91 @@ body.force-mobile nav button.navbtn{
   white-space: nowrap;
   font-size: 12px;
 }
-body.force-mobile main{ padding-bottom: 90px !important; }
+body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
+
+/* =========================================================
+   Responsive tables -> card layout (mobile-first professional)
+   Usage: add class="responsive-table" and data-label on td.
+========================================================= */
+@media (max-width: 768px){
+  table.responsive-table thead{ display:none; }
+
+  table.responsive-table,
+  table.responsive-table tbody,
+  table.responsive-table tr,
+  table.responsive-table td{
+    display:block;
+    width:100%;
+  }
+
+  table.responsive-table{ min-width: 0 !important; }
+
+  table.responsive-table tr{
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(148,163,184,0.18);
+    border-radius: 14px;
+    padding: 12px;
+    margin: 12px 0;
+  }
+
+  table.responsive-table td{
+    border: none;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+
+  table.responsive-table td::before{
+    content: attr(data-label);
+    display:block;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  /* Buton grupları alt satıra güzel otursun */
+  table.responsive-table .btn-group{ flex-wrap: wrap; gap: 8px; }
+  table.responsive-table td:last-child{ padding-top: 10px; }
+}
+
+/* =========================================================
+   Floating Action Button (FAB)
+========================================================= */
+.fab{
+  position: fixed;
+  right: 16px;
+  bottom: calc(86px + var(--safe-b));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(59,130,246,0.95);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18px 30px rgba(0,0,0,0.45);
+  z-index: 80;
+}
+.fab:active{ transform: scale(0.98); }
+
+/* =========================================================
+   Mobile modals: fullscreen app feel
+========================================================= */
+@media (max-width: 768px){
+  .modal-overlay{ padding: 0; }
+  .modal-content{
+    max-width: 100vw;
+    width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    padding: 18px;
+  }
+  .modal-close{ top: 12px; right: 12px; }
+}
 
 
 
