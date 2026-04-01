@@ -449,15 +449,76 @@ function renderDashSatisKarListesi(curr='USD'){
 }
 
 
+function getProductSortScore(u){
+  const stok = Number(u?.stok_miktar || 0);
+  return stok > 0 ? 1 : 0;
+}
+
+function sortProductsByStockStatus(list){
+  return (list || []).slice().sort((a, b) => {
+    const aActive = getProductSortScore(a);
+    const bActive = getProductSortScore(b);
+    if (aActive !== bActive) return bActive - aActive;
+
+    const aStock = Number(a?.stok_miktar || 0);
+    const bStock = Number(b?.stok_miktar || 0);
+    if (aStock !== bStock) return bStock - aStock;
+
+    return String(a?.ad || '').localeCompare(String(b?.ad || ''), 'tr');
+  });
+}
+
+function buildRecentActionRow(item){
+  if(item.source === 'kasa'){
+    const turText = item.tur === 'tahsilat' ? 'Tahsilat alındı' : 'Ödeme yapıldı';
+    const hesapText = item.hesapAd ? ` • Hesap: ${item.hesapAd}` : '';
+    const cariText = item.cariAd ? `Cari: ${item.cariAd}` : 'Cari belirtilmedi';
+    const aciklamaText = item.aciklama ? ` • ${item.aciklama}` : '';
+    return {
+      label: turText,
+      detail: `${cariText}${hesapText}${aciklamaText}`
+    };
+  }
+
+  if(item.source === 'gg'){
+    const turText = item.tur === 'gelir' ? 'Gelir kaydı eklendi' : 'Gider kaydı eklendi';
+    const kategoriText = item.kategori ? `Kategori: ${item.kategori}` : 'Kategori belirtilmedi';
+    const aciklamaText = item.aciklama ? ` • ${item.aciklama}` : '';
+    return {
+      label: turText,
+      detail: `${kategoriText}${aciklamaText}`
+    };
+  }
+
+  return {
+    label: item.tur || '-',
+    detail: item.aciklama || '-'
+  };
+}
+
 function renderDash(){
   const currElem = document.getElementById('dashCurrencySelect');
   const curr = currElem ? currElem.value : 'USD';
 
   const filteredUrun = URUNLER.filter(u => u.para_birimi === curr);
   let totalStockVal = 0;
-  filteredUrun.forEach(u => { totalStockVal += (Number(u.stok_miktar) || 0) * (Number(u.satis_fiyat) || 0); });
+  let totalStockCost = 0;
+  filteredUrun.forEach(u => {
+    const stock = Number(u.stok_miktar) || 0;
+    const salePrice = Number(u.satis_fiyat) || 0;
+    const costPrice = Number(u.alis_fiyat) || 0;
+
+    totalStockVal += stock * salePrice;
+    totalStockCost += stock * costPrice;
+  });
   document.getElementById('dashStokDeger').innerHTML =
     `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalStockVal, curr)}`;
+
+  const dashStokMaliyet = document.getElementById('dashStokMaliyet');
+  if (dashStokMaliyet) {
+    dashStokMaliyet.innerHTML =
+      `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalStockCost, curr)}`;
+  }
 
   let totalSales = 0;
   FATURALAR
@@ -492,18 +553,37 @@ function renderDash(){
   // Son işlemler
   const combinedMoves = [
     ...HAREKETLER.map(h => ({
+      source: 'kasa',
       tarih: h.tarih,
       tur: h.tur,
       tutar: h.tutar,
-      pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || 'USD'
+      pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || 'USD',
+      hesapAd: HESAPLAR.find(x=>x.id==h.hesap_id)?.ad || '',
+      cariAd: h.cari_id ? (CARILER.find(c=>c.id==h.cari_id)?.ad || '') : '',
+      aciklama: h.aciklama || ''
     })),
-    ...GG.map(g => ({tarih: g.tarih, tur: g.tur, tutar: g.tutar, pb: 'USD'}))
+    ...GG.map(g => ({
+      source: 'gg',
+      tarih: g.tarih,
+      tur: g.tur,
+      tutar: g.tutar,
+      pb: 'USD',
+      kategori: g.kategori || '',
+      aciklama: g.aciklama || ''
+    }))
   ];
   combinedMoves.sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
   const sonHareketler = document.getElementById('dashSonHareketler');
   sonHareketler.innerHTML = "";
   combinedMoves.slice(0, 5).forEach(m => {
-    sonHareketler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(m.tarih)}</td><td data-label="Tür"><span class="tag">${m.tur}</span></td><td data-label="Tutar">${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
+    const row = buildRecentActionRow(m);
+    sonHareketler.innerHTML += `
+      <tr>
+        <td data-label="Tarih">${formatTRDateTime(m.tarih)}</td>
+        <td data-label="İşlem"><span class="tag">${row.label}</span></td>
+        <td data-label="Detay">${row.detail}</td>
+        <td data-label="Tutar">${fmt(m.tutar, m.pb)}</td>
+      </tr>`;
   });
 
   // Son Ödemeler
@@ -1050,7 +1130,8 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
 
 function renderUrunler(){
   uListe.innerHTML="";
-  URUNLER.forEach(u=>{
+  const sortedUrunler = sortProductsByStockStatus(URUNLER);
+  sortedUrunler.forEach(u=>{
     const krit = Number(u.stok_miktar||0) <= Number(u.min_stok||0);
     const delBtn = USER_ROLE==='admin' ? `<button class="danger" data-del="${u.id}">Sil</button>` : '';
     const editBtn = USER_ROLE==='admin' ? `<button class="warning" data-edit="${u.id}">Düzenle</button>` : '';
