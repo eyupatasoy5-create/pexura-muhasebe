@@ -159,7 +159,7 @@
           <div style="margin-top:8px; font-size:12px; color:#94a3b8;">Not: Yukarıdaki liste seçili para birimine göre filtrelenir.</div>
         </div>
 
-        <!-- Yeni: Son Ödemeler / Son İadeler -->
+        <!-- Yeni: Son Ödemeler / Son Satışlar -->
         <div class="card" style="grid-column: span 6;">
           <h2>Son Ödemeler</h2>
           <table class="responsive-table">
@@ -169,10 +169,10 @@
         </div>
 
         <div class="card" style="grid-column: span 6;">
-          <h2>Son İadeler</h2>
+          <h2>Son Satışlar</h2>
           <table class="responsive-table">
             <thead><tr><th>Tarih</th><th>Müşteri</th><th>Tutar</th></tr></thead>
-            <tbody id="dashIadeler"></tbody>
+            <tbody id="dashSonSatislar"></tbody>
           </table>
         </div>
       </div>
@@ -279,7 +279,7 @@
           <button class="primary" style="width:100%; margin-top:10px;" id="cariEkleBtn">Kaydet</button>
         </div>
         <div class="card" style="grid-column: span 8;">
-          <h2>Cari Listesi</h2>
+          <h2>Cari Listesi<br><input type="text" id="cariSearch" placeholder="Cari ara..." style="width:250px;margin-bottom:10px;padding:8px;border-radius:6px;"></h2>
           <div class="row" style="justify-content:flex-end; margin: 0 0 8px 0; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#94a3b8; font-size:13px;">
               <input type="checkbox" id="showPasifCariler" style="width:auto;"> Pasifleri göster
@@ -659,5 +659,23 @@
     });
   }
 </script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const input = document.getElementById("cariSearch");
+    if(!input) return;
+
+    input.addEventListener("keyup", function() {
+        const value = this.value.toLowerCase();
+        const rows = document.querySelectorAll("table tbody tr");
+
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(value) ? "" : "none";
+        });
+    });
+});
+</script>
+
 </body>
 </html>

@@ -545,11 +545,16 @@ function renderDash(){
     dashOdemeler.innerHTML="";
     HAREKETLER
       .filter(h => h.tur==='tahsilat')
+      .sort((a,b) => new Date(b.tarih) - new Date(a.tarih))
       .slice(0,10)
       .forEach(h=>{
         const cari = CARILER.find(c=>c.id==h.cari_id);
         dashOdemeler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(h.tarih)}</td><td data-label="Müşteri">${cari?.ad||'-'}</td><td data-label="Tutar">${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td></tr>`;
       });
+
+    if(!dashOdemeler.innerHTML.trim()) {
+      dashOdemeler.innerHTML = `<tr><td colspan="3" class="muted">Henüz tahsilat yok.</td></tr>`;
+    }
   }
 
   // Satış & Kâr İşlem Listesi (Fatura Bazlı)
@@ -598,9 +603,9 @@ function renderDash(){
   if(eBT) eBT.textContent = fmt(todayIncome, curr);
   if(eBO) eBO.textContent = fmt(todayExpense, curr);
 
-  const eAS = document.getElementById('dashAySatis');
-  const eAG = document.getElementById('dashAyGider');
-  const eAK = document.getElementById('dashAyNetKar');
+  const eAS = document.getElementById('dashBuAySatis');
+  const eAG = document.getElementById('dashBuAyGider');
+  const eAK = document.getElementById('dashBuAyNetKar');
   if(eAS) eAS.textContent = fmt(monthSales, curr);
   if(eAG) eAG.textContent = fmt(monthGider, curr);
   if(eAK) eAK.innerHTML = `<span style="color:${monthNetProfit>=0?'#4ade80':'#ef4444'}">${fmt(monthNetProfit, curr)}</span>`;
@@ -615,24 +620,32 @@ function renderDash(){
     .filter(x=> x.bakiye > 0)
     .sort((a,b)=> b.bakiye - a.bakiye)
     .slice(0,5);
-  const tList = document.getElementById('dashTopBorcluList');
+  const tList = document.getElementById('dashEnBorclu');
   if(tList){
     tList.innerHTML = topBorclu.length
-      ? topBorclu.map(x=>`<li>${x.ad}<span class="muted">${fmt(x.bakiye, curr)}</span></li>`).join('')
-      : `<li class="muted">Borçlu cari yok.</li>`;
+      ? topBorclu.map(x=> {
+          const cari = (CARILER||[]).find(c=>c.id==x.id) || {};
+          return `<tr><td data-label="Cari">${x.ad || '-'}</td><td data-label="Bakiye" style="text-align:right; font-weight:700; color:#f87171;">${fmt(x.bakiye, curr)}</td><td data-label="Telefon">${cari.tel || '-'}</td></tr>`;
+        }).join('')
+      : `<tr><td colspan="3" class="muted">Borçlu cari bulunamadı.</td></tr>`;
   }
 
-  // Son İadeler
-  const dashIadeler = document.getElementById("dashIadeler");
-  if(dashIadeler){
-    dashIadeler.innerHTML="";
+  // Son Satışlar
+  const dashSonSatislar = document.getElementById("dashSonSatislar");
+  if(dashSonSatislar){
+    dashSonSatislar.innerHTML="";
     FATURALAR
-      .filter(f => normalizeTip(f.tip)==='iade')
+      .filter(f => normalizeTip(f.tip)==='satis')
+      .sort((a,b) => new Date(b.tarih) - new Date(a.tarih))
       .slice(0,10)
       .forEach(f=>{
         const cari = CARILER.find(c=>c.id==f.cari_id);
-        dashIadeler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(f.tarih)}</td><td data-label="Müşteri">${cari?.ad||'-'}</td><td data-label="Tutar">${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
+        dashSonSatislar.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(f.tarih)}</td><td data-label="Müşteri">${cari?.ad||'-'}</td><td data-label="Tutar">${fmt(f.genel_toplam,f.para_birimi)}</td></tr>`;
       });
+
+    if(!dashSonSatislar.innerHTML.trim()) {
+      dashSonSatislar.innerHTML = `<tr><td colspan="3" class="muted">Henüz satış yok.</td></tr>`;
+    }
   }
 
   // Aging buckets render (madde 7)
