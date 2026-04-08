@@ -449,76 +449,15 @@ function renderDashSatisKarListesi(curr='USD'){
 }
 
 
-function getProductSortScore(u){
-  const stok = Number(u?.stok_miktar || 0);
-  return stok > 0 ? 1 : 0;
-}
-
-function sortProductsByStockStatus(list){
-  return (list || []).slice().sort((a, b) => {
-    const aActive = getProductSortScore(a);
-    const bActive = getProductSortScore(b);
-    if (aActive !== bActive) return bActive - aActive;
-
-    const aStock = Number(a?.stok_miktar || 0);
-    const bStock = Number(b?.stok_miktar || 0);
-    if (aStock !== bStock) return bStock - aStock;
-
-    return String(a?.ad || '').localeCompare(String(b?.ad || ''), 'tr');
-  });
-}
-
-function buildRecentActionRow(item){
-  if(item.source === 'kasa'){
-    const turText = item.tur === 'tahsilat' ? 'Tahsilat alındı' : 'Ödeme yapıldı';
-    const hesapText = item.hesapAd ? ` • Hesap: ${item.hesapAd}` : '';
-    const cariText = item.cariAd ? `Cari: ${item.cariAd}` : 'Cari belirtilmedi';
-    const aciklamaText = item.aciklama ? ` • ${item.aciklama}` : '';
-    return {
-      label: turText,
-      detail: `${cariText}${hesapText}${aciklamaText}`
-    };
-  }
-
-  if(item.source === 'gg'){
-    const turText = item.tur === 'gelir' ? 'Gelir kaydı eklendi' : 'Gider kaydı eklendi';
-    const kategoriText = item.kategori ? `Kategori: ${item.kategori}` : 'Kategori belirtilmedi';
-    const aciklamaText = item.aciklama ? ` • ${item.aciklama}` : '';
-    return {
-      label: turText,
-      detail: `${kategoriText}${aciklamaText}`
-    };
-  }
-
-  return {
-    label: item.tur || '-',
-    detail: item.aciklama || '-'
-  };
-}
-
 function renderDash(){
   const currElem = document.getElementById('dashCurrencySelect');
   const curr = currElem ? currElem.value : 'USD';
 
   const filteredUrun = URUNLER.filter(u => u.para_birimi === curr);
   let totalStockVal = 0;
-  let totalStockCost = 0;
-  filteredUrun.forEach(u => {
-    const stock = Number(u.stok_miktar) || 0;
-    const salePrice = Number(u.satis_fiyat) || 0;
-    const costPrice = Number(u.alis_fiyat) || 0;
-
-    totalStockVal += stock * salePrice;
-    totalStockCost += stock * costPrice;
-  });
+  filteredUrun.forEach(u => { totalStockVal += (Number(u.stok_miktar) || 0) * (Number(u.satis_fiyat) || 0); });
   document.getElementById('dashStokDeger').innerHTML =
     `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalStockVal, curr)}`;
-
-  const dashStokMaliyet = document.getElementById('dashStokMaliyet');
-  if (dashStokMaliyet) {
-    dashStokMaliyet.innerHTML =
-      `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalStockCost, curr)}`;
-  }
 
   let totalSales = 0;
   FATURALAR
@@ -553,37 +492,18 @@ function renderDash(){
   // Son işlemler
   const combinedMoves = [
     ...HAREKETLER.map(h => ({
-      source: 'kasa',
       tarih: h.tarih,
       tur: h.tur,
       tutar: h.tutar,
-      pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || 'USD',
-      hesapAd: HESAPLAR.find(x=>x.id==h.hesap_id)?.ad || '',
-      cariAd: h.cari_id ? (CARILER.find(c=>c.id==h.cari_id)?.ad || '') : '',
-      aciklama: h.aciklama || ''
+      pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || 'USD'
     })),
-    ...GG.map(g => ({
-      source: 'gg',
-      tarih: g.tarih,
-      tur: g.tur,
-      tutar: g.tutar,
-      pb: 'USD',
-      kategori: g.kategori || '',
-      aciklama: g.aciklama || ''
-    }))
+    ...GG.map(g => ({tarih: g.tarih, tur: g.tur, tutar: g.tutar, pb: 'USD'}))
   ];
   combinedMoves.sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
   const sonHareketler = document.getElementById('dashSonHareketler');
   sonHareketler.innerHTML = "";
   combinedMoves.slice(0, 5).forEach(m => {
-    const row = buildRecentActionRow(m);
-    sonHareketler.innerHTML += `
-      <tr>
-        <td data-label="Tarih">${formatTRDateTime(m.tarih)}</td>
-        <td data-label="İşlem"><span class="tag">${row.label}</span></td>
-        <td data-label="Detay">${row.detail}</td>
-        <td data-label="Tutar">${fmt(m.tutar, m.pb)}</td>
-      </tr>`;
+    sonHareketler.innerHTML += `<tr><td data-label="Tarih">${formatTRDateTime(m.tarih)}</td><td data-label="Tür"><span class="tag">${m.tur}</span></td><td data-label="Tutar">${Number(m.tutar).toLocaleString('tr-TR')} ${m.pb === 'TL' ? '₺' : (m.pb==='EUR'?'€':'$')}</td></tr>`;
   });
 
   // Son Ödemeler
@@ -819,20 +739,28 @@ async function generateAndSharePDF(fatura, mode = 'download') {
     }
 
     // --- PDF Tasarım (ekran bozmadan, sadece PDF) ---
-    doc.setTextColor(59, 130, 246);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(26);
-    doc.text("PEXURA TECH", 14, 20);
+    addPexuraPdfBranding(doc, {
+      title: trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI'),
+      subtitle: `Belge No: ${fatura.numara || fatura.id}`,
+      footerLeft: `PEXURA TECH • Cari: ${safePdfText(cariAd)}`,
+      footerRight: `Tarih: ${formatDateTR(fatura.tarih)}`
+    });
 
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text(trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI'), 14, 30);
+    const belgeBaslik = trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI');
+    doc.setTextColor(15, 23, 42);
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(15);
+    doc.text(belgeBaslik, 14, 48);
 
-    doc.setFont("helvetica", "normal");
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(14, 56, 182, 38, 4, 4, 'FD');
+    applyPdfFont(doc, 'normal');
     doc.setFontSize(10);
-    doc.text(`Tarih: ${formatDateTR(fatura.tarih)}`, 14, 40);
-    doc.text(`Fatura No: ${fatura.numara || '-'}`, 14, 45);
-    doc.text(`Cari: ${trFix(cariAd)}`, 14, 50);
+    doc.text(`Tarih: ${formatDateTR(fatura.tarih)}`, 20, 68);
+    doc.text(`Fatura No: ${fatura.numara || '-'}`, 20, 80);
+    doc.text(`Cari: ${trFix(cariAd)}`, 110, 68);
+    doc.text(`Telefon: ${trFix(cariTel || '-')}`, 110, 80);
 
     // Tablo (ekstra ürün = fatura kalemleri)
     const tableData = (kalemler || []).map(k => [
@@ -842,7 +770,7 @@ async function generateAndSharePDF(fatura, mode = 'download') {
       fmt(k.satir_tutar, fatura.para_birimi)
     ]);
 
-    const startY = 60;
+    const startY = 104;
 
     doc.autoTable({
       startY,
@@ -863,10 +791,19 @@ async function generateAndSharePDF(fatura, mode = 'download') {
 
     // Güncel borç (GENEL TOPLAM altı)
     const yAfter = doc.lastAutoTable?.finalY || (startY + 20);
-    const etiket = guncelBorc > 0 ? "Güncel Borç" : (guncelBorc < 0 ? "Güncel Alacak" : "Güncel Bakiye");
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`${etiket}: ${fmt(guncelBorc, fatura.para_birimi)}`, 14, yAfter + 10);
+    const etiket = guncelBorc > 0 ? 'Guncel Borc' : (guncelBorc < 0 ? 'Guncel Alacak' : 'Guncel Bakiye');
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yAfter + 4, 182, 30, 4, 4, 'FD');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    applyPdfFont(doc, 'bold');
+    doc.text(`${etiket}:`, 20, yAfter + 16);
+    applyPdfFont(doc, 'normal');
+    doc.text(`${fmt(guncelBorc, fatura.para_birimi)}`, 72, yAfter + 16);
+
+    drawPdfNoteBox(doc, 'Bu fatura PEXURA TECH tarafindan olusturulmustur. Musteri arsivi, tahsilat takibi ve resmi bilgilendirme icin kullanilabilir.', yAfter + 40, { x: 14, w: 182, title: 'NOTLAR' });
+    drawPdfSignature(doc, { signer: 'PEXURA TECH', title: 'Yetkili Imza', x: 150, y: 274 });
 
     const fileName = `Pexura_Fatura_${fatura.numara || fatura.id}.pdf`;
 
@@ -896,6 +833,288 @@ function normalizeTip(tip){
   if(tip === "alis") return "iade";
   return tip;
 }
+
+
+function drawPexuraLogo(doc, x, y) {
+  doc.setFillColor(37, 99, 235);
+  doc.roundedRect(x - 8, y - 10, 18, 20, 6, 6, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(x - 2, y - 6.5, 5.2, 13, 2.4, 2.4, 'F');
+  doc.circle(x + 3.2, y - 3.6, 4.8, 'F');
+  doc.setFillColor(37, 99, 235);
+  doc.circle(x + 4, y - 3.6, 2.2, 'F');
+  doc.roundedRect(x + 0.6, y + 0.8, 3.2, 5.6, 1.6, 1.6, 'F');
+}
+
+
+function drawPdfInfoRows(doc, rows, opts = {}) {
+  const labelX = opts.labelX || 40;
+  const valueX = opts.valueX || 165;
+  const startY = opts.startY || 70;
+  const rowGap = opts.rowGap || 18;
+  const valueWidth = opts.valueWidth || 340;
+  let y = startY;
+
+  rows.forEach(([label, value]) => {
+    applyPdfFont(doc, 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${safePdfText(label)}:`, labelX, y);
+
+    applyPdfFont(doc, 'normal');
+    doc.setTextColor(15, 23, 42);
+    const split = doc.splitTextToSize(safePdfText(value), valueWidth);
+    doc.text(split, valueX, y);
+    y += Math.max(rowGap, split.length * 12);
+  });
+
+  return y;
+}
+
+function drawPdfNoteBox(doc, text, y, opts = {}) {
+  const x = opts.x || 40;
+  const w = opts.w || 515;
+  const title = opts.title || 'NOT';
+  const lines = doc.splitTextToSize(safePdfText(text), w - 24);
+  const h = Math.max(54, 24 + lines.length * 12);
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(x, y, w, h, 8, 8, 'FD');
+  applyPdfFont(doc, 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text(title, x + 12, y + 18);
+  applyPdfFont(doc, 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(lines, x + 12, y + 34);
+  return y + h;
+}
+
+function drawPdfSignature(doc, opts = {}) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const x = opts.x || pageW - 180;
+  const y = opts.y || pageH - 88;
+  const signer = opts.signer || 'PEXURA TECH';
+  const title = opts.title || 'Yetkili Imza';
+
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.8);
+  doc.line(x, y, x + 120, y);
+  applyPdfFont(doc, 'normal');
+  doc.setFontSize(13);
+  doc.setTextColor(37, 99, 235);
+  doc.text(signer, x + 60, y - 8, { align: 'center' });
+  applyPdfFont(doc, 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text(signer, x + 60, y + 16, { align: 'center' });
+  applyPdfFont(doc, 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(title, x + 60, y + 30, { align: 'center' });
+}
+
+function addPexuraPdfBranding(doc, opts = {}) {
+  const pageCount = doc.getNumberOfPages();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const title = opts.title || 'BELGE';
+  const subtitle = opts.subtitle || '';
+  const footerLeft = opts.footerLeft || 'PEXURA TECH';
+  const footerRight = opts.footerRight || `Olusturma: ${formatTRDateTime(new Date())}`;
+
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(0.9);
+    doc.line(20, 34, pageW - 20, 34);
+    doc.line(20, pageH - 28, pageW - 20, pageH - 28);
+
+    drawPexuraLogo(doc, 34, 19);
+
+    doc.setTextColor(37, 99, 235);
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(20);
+    doc.text('PEXURA TECH', 48, 24);
+
+    doc.setTextColor(15, 23, 42);
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(12);
+    doc.text(title, pageW - 20, 22, { align: 'right' });
+
+    if (subtitle) {
+      applyPdfFont(doc, 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(subtitle, pageW - 20, 32, { align: 'right' });
+    }
+
+    applyPdfFont(doc, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(String(footerLeft), 20, pageH - 14);
+    doc.text(String(footerRight), pageW - 20, pageH - 14, { align: 'right' });
+  }
+}
+
+function safePdfText(val) {
+  return String(val == null ? '-' : val);
+}
+
+
+function applyPdfFont(doc, style = 'normal') {
+  try {
+    if (window.ensurePdfTurkishFont) window.ensurePdfTurkishFont(doc);
+    doc.setFont('DejaVuSans', style === 'bold' ? 'bold' : 'normal');
+  } catch (e) {
+    doc.setFont('helvetica', style === 'bold' ? 'bold' : 'normal');
+  }
+}
+
+function toTitleCaseTr(str) {
+  return String(str || '')
+    .toLocaleLowerCase('tr-TR')
+    .split(/\s+/)
+    .map(s => s ? s.charAt(0).toLocaleUpperCase('tr-TR') + s.slice(1) : s)
+    .join(' ')
+    .trim();
+}
+
+function getPlainHareketAciklama(h) {
+  const raw = String(h?.aciklama || '').trim();
+  if (!raw) return '-';
+  const notMatch = raw.match(/(?:^|•)\s*Not:\s*(.+)$/i);
+  if (notMatch && notMatch[1]) return toTitleCaseTr(notMatch[1].trim());
+  if (raw.includes('•')) return toTitleCaseTr(raw.split('•')[0].trim());
+  return toTitleCaseTr(raw);
+}
+
+function getPdfDisplayDate(v) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const formatTR = (dateObj) => {
+    try {
+      const parts = new Intl.DateTimeFormat('tr-TR', {
+        timeZone: 'Europe/Istanbul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(dateObj);
+      const get = (type) => parts.find(p => p.type === type)?.value || '00';
+      return `${get('day')}.${get('month')}.${get('year')} ${get('hour')}:${get('minute')}`;
+    } catch (e) {
+      return formatTRDateTime(dateObj);
+    }
+  };
+
+  const now = new Date();
+  if (!v) return formatTR(now);
+  try {
+    const s = String(v).trim().replace(' ', 'T');
+    const d = new Date(s);
+    if (!Number.isFinite(d.getTime())) return formatTR(now);
+    const trNow = new Date();
+    d.setHours(trNow.getHours(), trNow.getMinutes(), 0, 0);
+    return formatTR(d);
+  } catch (e) {
+    return formatTR(now);
+  }
+}
+
+window.downloadCariPanelKasaPdf = async (hareketId) => {
+  try {
+    const h = HAREKETLER.find(x => String(x.id) === String(hareketId));
+    if (!h) return showToast('İşlem bulunamadı.', 'error');
+    if (!window.jspdf) return showToast('PDF kütüphanesi eksik.', 'error');
+
+    const cari = CARILER.find(c => String(c.id) === String(h.cari_id)) || {};
+    const hesap = HESAPLAR.find(k => String(k.id) === String(h.hesap_id)) || {};
+    const pb = hesap.para_birimi || 'USD';
+    const tutar = toNum(h.tutar);
+    const mevcutBakiye = hesaplaBakiye(h.cari_id);
+    const oncekiBorc = h.tur === 'tahsilat' ? mevcutBakiye + tutar : mevcutBakiye - tutar;
+    const belgeTipi = h.tur === 'tahsilat' ? 'TAHSILAT MAKBUZU' : 'ODEME MAKBUZU';
+    const pdfTarih = getPdfDisplayDate(h.tarih || new Date());
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    addPexuraPdfBranding(doc, {
+      title: belgeTipi,
+      subtitle: `Belge No: HKT-${h.id}`,
+      footerLeft: `PEXURA TECH • Cari: ${safePdfText(cari.ad || '-')}`,
+      footerRight: `Tarih: ${pdfTarih}`
+    });
+
+    doc.setTextColor(15, 23, 42);
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(15);
+    doc.text(belgeTipi, 40, 62);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(40, 76, 515, 188, 10, 10, 'FD');
+
+    applyPdfFont(doc, 'normal');
+    doc.setFontSize(10);
+    const aciklamaPdf = getPlainHareketAciklama(h);
+    let y = drawPdfInfoRows(doc, [
+      ['Müşteri', toTitleCaseTr(cari.ad || '-')],
+      ['Telefon', cari.tel || '-'],
+      ['Tarih', pdfTarih],
+      ['Kasa / Banka', toTitleCaseTr(hesap.ad || '-')],
+      ['İşlem Türü', h.tur === 'tahsilat' ? 'Tahsilat (Para Alındı)' : 'Ödeme (Para Verildi)'],
+      ['İşlem Tutarı', fmt(tutar, pb)],
+      ['İşlem Öncesi Bakiye', fmt(oncekiBorc, pb)],
+      ['İşlem Sonrası Kalan', fmt(mevcutBakiye, pb)],
+      ['Açıklama', aciklamaPdf]
+    ], { labelX: 58, valueX: 190, startY: 100, rowGap: 18, valueWidth: 330 });
+
+    const noteY = y + 12;
+    const noteLines = [
+      'Alışverişimiz Sadece Kredi Kartı ve Nakit İledir.',
+      "Ödemeleri Lütfen Aşağıdaki IBAN'a Gönderiniz.",
+      'Gönderdikten Sonra Bilgi Vermeyi Unutmayınız.',
+      '',
+      'Hasan Atasoy',
+      'TR17 0001 0004 8893 2779 6550 01',
+      'Ziraat Bankası'
+    ];
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(40, noteY, 515, 138, 8, 8, 'FD');
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Notlar', 54, noteY + 20);
+    applyPdfFont(doc, 'normal');
+    doc.setFontSize(10.5);
+    doc.setTextColor(15, 23, 42);
+
+    let noteText = [];
+    noteLines.forEach(line => {
+      if (!line) {
+        noteText.push('');
+      } else {
+        const pieces = doc.splitTextToSize(line, 485);
+        noteText = noteText.concat(pieces);
+      }
+    });
+    doc.text(noteText, 54, noteY + 42, { lineHeightFactor: 1.45 });
+
+    drawPdfSignature(doc, { signer: 'Pexura Tech', title: 'Yetkili İmza' });
+
+    const fileName = `${h.tur === 'tahsilat' ? 'Pexura_Tahsilat' : 'Pexura_Odeme'}_${h.id}.pdf`;
+    doc.save(fileName);
+    showToast('İşlem PDF indirildi.', 'success');
+  } catch (e) {
+    console.error(e);
+    showToast(e?.message || 'İşlem PDF oluşturulamadı', 'error');
+  }
+};
 
 /* =========================================================
    CARİLER
@@ -1130,8 +1349,7 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
 
 function renderUrunler(){
   uListe.innerHTML="";
-  const sortedUrunler = sortProductsByStockStatus(URUNLER);
-  sortedUrunler.forEach(u=>{
+  URUNLER.forEach(u=>{
     const krit = Number(u.stok_miktar||0) <= Number(u.min_stok||0);
     const delBtn = USER_ROLE==='admin' ? `<button class="danger" data-del="${u.id}">Sil</button>` : '';
     const editBtn = USER_ROLE==='admin' ? `<button class="warning" data-edit="${u.id}">Düzenle</button>` : '';
@@ -1891,11 +2109,14 @@ window.openCariPanel = async (id) => {
   document.getElementById('cpFinansTutar').value = "";
   document.getElementById('cpFinansAciklama').value = "";
   setCpFinansTur('tahsilat');
+  const cpTutarInput = document.getElementById('cpFinansTutar');
+  if(cpTutarInput) cpTutarInput.oninput = cpTahsilatOzetGuncelle;
 
   CP_SEPET = [];
   renderCpSepet();
 
   await cpVerileriGuncelle();
+  cpTahsilatOzetGuncelle();
   await cpHareketleriGetir();
 };
 
@@ -1991,6 +2212,7 @@ window.cpSatisiTamamla = async ()=>{
 
   const pb = CP_SEPET[0].para_birimi || "USD";
   const total = CP_SEPET.reduce((a,b)=>a+b.satir_tutar,0);
+  const oncekiBakiye = hesaplaBakiye(ACTIVE_CARI_ID);
 
   const numara = await getAutoFaturaNo();
 
@@ -2025,7 +2247,7 @@ window.cpSatisiTamamla = async ()=>{
     await applyStockChange(s.urun_id, -s.miktar, {tur:"satis", kaynak:"fatura", kaynak_id:fatura.id, aciklama:"Hızlı satış"});
   }
 
-  showToast("Satış tamamlandı, fatura oluştu.","success");
+  showToast(`Satış tamamlandı. Yeni borç: ${fmt(oncekiBakiye + total, pb)}`,"success");
   CP_SEPET=[]; renderCpSepet();
 
   await fetchAll(); renderAll();
@@ -2042,6 +2264,7 @@ window.setCpFinansTur = (tur) => {
     document.getElementById('btnTahsilat').style.opacity = '0.5';
     document.getElementById('btnOdeme').style.opacity = '1';
   }
+  cpTahsilatOzetGuncelle();
 };
 
 window.cpFinansIsle = async () => {
@@ -2052,6 +2275,12 @@ window.cpFinansIsle = async () => {
   const aciklama = document.getElementById('cpFinansAciklama').value;
   if(tutar <= 0) return showToast("Geçerli bir tutar girin", "warning");
 
+  const cari = CARILER.find(c => c.id == ACTIVE_CARI_ID);
+  const hesap = HESAPLAR.find(h => h.id == kasaId);
+  const mevcutBakiye = hesaplaBakiye(ACTIVE_CARI_ID);
+  const yeniBakiye = tur === 'tahsilat' ? mevcutBakiye - tutar : mevcutBakiye + tutar;
+  const kayitAciklama = (aciklama || '').trim() || (tur === 'tahsilat' ? 'Tahsilat' : 'Odeme');
+
   const { error } = await supa.from('kasa_hareketler').insert({
     user_id: USER.id,
     hesap_id: kasaId,
@@ -2059,14 +2288,17 @@ window.cpFinansIsle = async () => {
     tur: tur,
     tutar: tutar,
     tarih: todayStr(),
-    aciklama: aciklama || "Müşteri Paneli İşlemi"
+    aciklama: kayitAciklama
   });
   if(error) return showToast(error.message, "error");
 
-  showToast("Finansal işlem kaydedildi.", "success");
+  showToast(`İşlem kaydedildi. Kalan borç: ${fmt(yeniBakiye, hesap?.para_birimi || 'USD')}`, "success");
   document.getElementById('cpFinansTutar').value = "";
+  document.getElementById('cpFinansAciklama').value = "";
   await fetchAll(); renderAll();
-  await cpVerileriGuncelle(); await cpHareketleriGetir();
+  await cpVerileriGuncelle();
+  cpTahsilatOzetGuncelle();
+  await cpHareketleriGetir();
 };
 
 /* =========================================================
@@ -2078,9 +2310,11 @@ async function cpHareketleriGetir(){
     tarih:f.tarih,
     tur: normalizeTip(f.tip)==='satis' ? "Satış Faturası" : "İade Faturası",
     tutar: normalizeTip(f.tip)==='satis' ? +f.genel_toplam : -f.genel_toplam,
-    aciklama: f.numara || "",
+    aciklama: `${normalizeTip(f.tip)==='satis' ? 'Satış faturası oluşturuldu' : 'İade faturası oluşturuldu'} • No: ${f.numara || '-'} • ${normalizeTip(f.tip)==='satis' ? 'Cari borca eklendi' : 'Cari borçtan düşüldü'}`,
     kaynak:"fatura",
-    pb:f.para_birimi
+    pb:f.para_birimi,
+    rawTur: normalizeTip(f.tip),
+    numara: f.numara || ''
   }));
   const kList = HAREKETLER.filter(h=>h.cari_id==ACTIVE_CARI_ID).map(h=>({
     id:h.id,
@@ -2089,7 +2323,8 @@ async function cpHareketleriGetir(){
     tutar:+h.tutar,
     aciklama:h.aciklama||"",
     kaynak:"kasa",
-    pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||"USD"
+    pb: HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||"USD",
+    rawTur: h.tur
   }));
 
   CP_HAREKETLER = [...fList,...kList].sort((a,b)=>new Date(b.tarih)-new Date(a.tarih));
@@ -2099,17 +2334,20 @@ function renderCpHareketler(list){
   const body=document.getElementById("cpHareketListe");
   body.innerHTML="";
   list.forEach(x=>{
+    const detayHtml = x.aciklama || '-';
     body.innerHTML += `
     <tr>
       <td>${formatTRDateTime(x.tarih)}</td>
-      <td>${x.tur}</td>
+      <td><span class="tag">${x.tur}</span></td>
       <td>${fmt(x.tutar,x.pb)}</td>
-      <td>${x.aciklama||"-"}</td>
+      <td style="max-width:420px; white-space:normal; line-height:1.5;">${detayHtml}</td>
       <td>
         ${x.kaynak==="fatura"
-          ? `<button class="warning" onclick="editFatura('${x.id}')">Düzenle</button>
+          ? `<button class="info" onclick="downloadCariPanelFaturaPdf('${x.id}')">PDF</button>
+             <button class="warning" onclick="editFatura('${x.id}')">Düzenle</button>
              <button class="danger" onclick="deleteHistoryItem('fatura','${x.id}')">Sil</button>`
-          : `<button class="warning" onclick="jumpToHareketEdit('${x.id}')">Düzenle</button>
+          : `<button class="info" onclick="downloadCariPanelKasaPdf('${x.id}')">PDF</button>
+             <button class="warning" onclick="jumpToHareketEdit('${x.id}')">Düzenle</button>
              <button class="danger" onclick="deleteHistoryItem('hareket','${x.id}')">Sil</button>`
         }
       </td>
@@ -2125,32 +2363,58 @@ window.cpHareketAraFiltre = ()=>{
   renderCpHareketler(filt);
 };
 
+function getCariBorcuDetay(cariId) {
+  let borc = 0; let alacak = 0;
+
+  FATURALAR.filter(f => f.cari_id == cariId).forEach(f=>{
+    if(normalizeTip(f.tip)==='satis') borc += toNum(f.genel_toplam);
+    if(normalizeTip(f.tip)==='iade') alacak += toNum(f.genel_toplam);
+  });
+
+  HAREKETLER.filter(h => h.cari_id == cariId && h.tur == 'tahsilat').forEach(h => alacak += toNum(h.tutar));
+  const cari = CARILER.find(c => c.id == cariId);
+  if(cari) { borc += toNum(cari.acilis_borc); alacak += toNum(cari.acilis_alacak); }
+
+  const bakiye = borc - alacak;
+  return { borc, alacak, bakiye };
+}
+
+function cpTahsilatOzetGuncelle() {
+  const mevcutEl = document.getElementById('cpMevcutBorc');
+  const kalanEl = document.getElementById('cpKalanBorc');
+  const box = document.getElementById('cpTahsilatOzet');
+  const turEl = document.getElementById('cpFinansTur');
+  const tutarEl = document.getElementById('cpFinansTutar');
+  if(!mevcutEl || !kalanEl || !box || !ACTIVE_CARI_ID || !turEl || !tutarEl) return;
+
+  const detay = getCariBorcuDetay(ACTIVE_CARI_ID);
+  const islemTutari = toNum(tutarEl.value);
+  const tur = turEl.value;
+  let sonrakiBakiye = detay.bakiye;
+  if(tur === 'tahsilat') sonrakiBakiye = detay.bakiye - islemTutari;
+  else if(tur === 'odeme') sonrakiBakiye = detay.bakiye + islemTutari;
+
+  mevcutEl.textContent = fmt(detay.bakiye);
+  kalanEl.textContent = fmt(sonrakiBakiye);
+  kalanEl.style.color = sonrakiBakiye > 0 ? '#fca5a5' : (sonrakiBakiye < 0 ? '#4ade80' : '#e2e8f0');
+  box.style.display = 'block';
+}
+
+window.downloadCariPanelFaturaPdf = async (faturaId) => {
+  CURRENT_FATURA_DETAY_ID = faturaId;
+  await window.downloadFaturaPdfFromDetay();
+};
+
 /* =========================================================
    Cari bakiye hesap (iade düşer)
 ========================================================= */
 async function cpVerileriGuncelle() {
   if(!ACTIVE_CARI_ID) return;
-  let borc = 0; let alacak = 0;
-
-  FATURALAR
-    .filter(f => f.cari_id == ACTIVE_CARI_ID)
-    .forEach(f=>{
-      const tip=normalizeTip(f.tip);
-      if(tip==='satis') borc += toNum(f.genel_toplam);
-      if(tip==='iade') alacak += toNum(f.genel_toplam); // iade müşterinin borcundan düşer
-    });
-
-  HAREKETLER
-    .filter(h => h.cari_id == ACTIVE_CARI_ID && h.tur == 'tahsilat')
-    .forEach(h => alacak += toNum(h.tutar));
-
-  const cari = CARILER.find(c => c.id == ACTIVE_CARI_ID);
-  if(cari) { borc += toNum(cari.acilis_borc); alacak += toNum(cari.acilis_alacak); }
-
-  const bakiye = borc - alacak;
+  const { bakiye } = getCariBorcuDetay(ACTIVE_CARI_ID);
   const bakiyeEl = document.getElementById('cpBakiye');
   bakiyeEl.textContent = fmt(bakiye);
-  bakiyeEl.style.color = bakiye > 0 ? '#ef4444' : '#4ade80';
+  bakiyeEl.style.color = bakiye > 0 ? '#ef4444' : (bakiye < 0 ? '#4ade80' : '#e2e8f0');
+  cpTahsilatOzetGuncelle();
 }
 
 /* =========================================================
@@ -2286,17 +2550,7 @@ window.openEkstre = async (cariId) => {
 };
 
 function hesaplaBakiye(cariId) {
-  let borc = 0; let alacak = 0;
-
-  FATURALAR.filter(f => f.cari_id == cariId).forEach(f=>{
-    if(normalizeTip(f.tip)==='satis') borc += toNum(f.genel_toplam);
-    if(normalizeTip(f.tip)==='iade') alacak += toNum(f.genel_toplam);
-  });
-
-  HAREKETLER.filter(h => h.cari_id == cariId && h.tur == 'tahsilat').forEach(h => alacak += toNum(h.tutar));
-  const cari = CARILER.find(c => c.id == cariId);
-  if(cari) { borc += toNum(cari.acilis_borc); alacak += toNum(cari.acilis_alacak); }
-  return borc - alacak;
+  return getCariBorcuDetay(cariId).bakiye;
 }
 window.closeEkstre = () => document.getElementById('modalEkstre').classList.add('hide');
 window.jumpToUrunEdit = (id) => { document.querySelector('button[data-tab="urunler"]').click(); setTimeout(() => { const btn = document.querySelector(`button[data-edit="${id}"]`); if(btn) btn.click(); }, 300); };
@@ -2839,12 +3093,27 @@ window.downloadFaturaPdfFromDetay = async () => {
     if(!jsPDF) return showToast("PDF kütüphanesi yüklenemedi", "error");
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
-    doc.setFontSize(14);
-    doc.text(`FATURA • ${f.numara || ''}`, 40, 50);
+    addPexuraPdfBranding(doc, {
+      title: 'SATIS FATURASI',
+      subtitle: `Belge No: ${f.numara || f.id}`,
+      footerLeft: `PEXURA TECH • Müşteri: ${safePdfText(musteriAd || '-')}` ,
+      footerRight: `Tarih: ${formatTRDateTime(f.tarih)}`
+    });
 
+    doc.setFontSize(15);
+    applyPdfFont(doc, 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`FATURA • ${f.numara || ''}`, 40, 62);
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(40, 74, 515, 42, 10, 10, 'FD');
+    applyPdfFont(doc, 'normal');
     doc.setFontSize(10);
-    doc.text(`Müşteri: ${musteriAd}   Tel: ${tel}`, 40, 70);
-    doc.text(`Tarih: ${formatTRDateTime(f.tarih)}   Para Birimi: ${pb}`, 40, 85);
+    doc.text(`Musteri: ${safePdfText(musteriAd || '-')}`, 56, 92);
+    doc.text(`Telefon: ${safePdfText(tel || '-')}`, 300, 92);
+    doc.text(`Tarih: ${formatTRDateTime(f.tarih)}`, 56, 106);
+    doc.text(`Para Birimi: ${pb}`, 300, 106);
 
     const body = kalemler.map(k => {
       const urunAd = k.urun_ad_snapshot || (URUNLER.find(u=>u.id==k.urun_id)?.ad) || '-';
@@ -2857,18 +3126,32 @@ window.downloadFaturaPdfFromDetay = async () => {
     doc.autoTable({
       head: [['Ürün', 'Miktar', 'Birim Fiyat', 'Tutar']],
       body,
-      startY: 105,
+      startY: 112,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [30, 41, 59] }
     });
 
     const y = doc.lastAutoTable.finalY + 20;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(330, y - 14, 225, 80, 10, 10, 'FD');
     doc.setFontSize(10);
-    doc.text(`Ara Toplam: ${fmt(araToplam, pb)}`, 380, y);
-    doc.text(`KDV Toplam: ${fmt(kdvToplam, pb)}`, 380, y+14);
-    doc.text(`Genel Toplam: ${fmt(genelToplam, pb)}`, 380, y+28);
-    doc.text(`Ödenen: ${fmt(odenen, pb)}`, 380, y+42);
-    doc.text(`Kalan: ${fmt(kalan, pb)}`, 380, y+56);
+    applyPdfFont(doc, 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('Ara Toplam:', 346, y);
+    doc.text('KDV Toplam:', 346, y+14);
+    doc.text('Genel Toplam:', 346, y+28);
+    doc.text('Odenen:', 346, y+42);
+    doc.text('Kalan:', 346, y+56);
+    applyPdfFont(doc, 'normal');
+    doc.text(`${fmt(araToplam, pb)}`, 540, y, { align: 'right' });
+    doc.text(`${fmt(kdvToplam, pb)}`, 540, y+14, { align: 'right' });
+    doc.text(`${fmt(genelToplam, pb)}`, 540, y+28, { align: 'right' });
+    doc.text(`${fmt(odenen, pb)}`, 540, y+42, { align: 'right' });
+    doc.text(`${fmt(kalan, pb)}`, 540, y+56, { align: 'right' });
+
+    drawPdfNoteBox(doc, 'Bu fatura PEXURA TECH tarafindan olusturulmustur. Musteriye gonderim, arsivleme ve odeme takibi icin kullanilabilir.', y + 78, { x: 40, w: 515, title: 'NOTLAR' });
+    drawPdfSignature(doc, { signer: 'PEXURA TECH', title: 'Yetkili Imza' });
 
     doc.save(`Fatura-${f.numara || f.id}.pdf`);
     showToast("PDF indirildi.", "success");

@@ -79,8 +79,8 @@
                 <option value="EUR">€ Euro</option>
             </select>
         </div>
-        <div class="card kpi"><div class="label">Ürün Çeşidi & Satış Değeri</div><div class="val" id="dashStokDeger">0</div></div>
-        <div class="card kpi"><div class="label">Ürün Maliyet Değeri</div><div class="val" id="dashStokMaliyet">0</div></div>
+
+        <div class="card kpi"><div class="label">Ürün Çeşidi & Değeri</div><div class="val" id="dashStokDeger">0</div></div>
         <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
         <div class="card kpi"><div class="label">Net Kasa</div><div class="val" id="dashNakit">0</div></div>
 
@@ -125,7 +125,7 @@
         <div class="card" style="grid-column: span 6;">
           <h2>Son İşlemler</h2>
           <table class="responsive-table">
-            <thead><tr><th>Tarih</th><th>İşlem</th><th>Detay</th><th>Tutar</th></tr></thead>
+            <thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th></tr></thead>
             <tbody id="dashSonHareketler"></tbody>
           </table>
         </div>
@@ -612,6 +612,10 @@
         <input type="hidden" id="cpFinansTur" value="tahsilat">
         <label>İşlenecek Tutar</label>
         <input id="cpFinansTutar" type="number" placeholder="0.00">
+        <div id="cpTahsilatOzet" style="margin:8px 0 10px; padding:10px 12px; border:1px solid #334155; border-radius:10px; background:rgba(15,23,42,.45); font-size:12px; color:#cbd5e1; line-height:1.55;">
+          <div>Mevcut Borç: <b id="cpMevcutBorc">0.00 $</b></div>
+          <div>Bu İşlem Sonrası Kalan: <b id="cpKalanBorc">0.00 $</b></div>
+        </div>
         <label>Kasa/Banka Seç</label>
         <select id="cpKasaSelect"></select>
         <label>Açıklama</label>
@@ -625,7 +629,7 @@
       <h3 style="margin-top:0;">📜 Tüm Hareketler</h3>
       <input id="cpHareketAra" placeholder="Hareket ara (ürün / açıklama / tür)" onkeyup="cpHareketAraFiltre()">
       <table class="mini-table">
-        <thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Açıklama</th><th>İşlem</th></tr></thead>
+        <thead><tr><th>Tarih</th><th>Tür</th><th>Tutar</th><th>Detay</th><th>İşlem</th></tr></thead>
         <tbody id="cpHareketListe"></tbody>
       </table>
 
@@ -642,6 +646,7 @@
 <button id="fab" class="fab hide" type="button" aria-label="Yeni" title="Yeni">+</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="pdf-font.js"></script>
 <script src="app.js"></script>
 
 <script>
