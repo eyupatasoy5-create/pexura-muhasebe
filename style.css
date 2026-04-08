@@ -190,7 +190,7 @@ button.warning { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1p
 button.danger { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
 
 .kpi {
-  grid-column: span 4;
+  grid-column: span 3;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 30px; text-align: center;
   background: var(--card-bg); 

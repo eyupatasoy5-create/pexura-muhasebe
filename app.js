@@ -37,6 +37,33 @@ const nowLocalDT = ()=>{
   d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
   return d.toISOString().slice(0,16);
 };
+const nowLocalDTWithSeconds = ()=>{
+  const d=new Date();
+  d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  return d.toISOString().slice(0,19);
+};
+const getSortTimestamp = (v, fallback = '')=>{
+  const val = String(v || '').trim();
+  const fallbackVal = String(fallback || '').trim();
+  const parseMs = (input)=>{
+    if(!input) return NaN;
+    const normalized = input.replace(' ', 'T');
+    const d = new Date(normalized);
+    return Number.isFinite(d.getTime()) ? d.getTime() : NaN;
+  };
+  const primary = parseMs(val);
+  if(Number.isFinite(primary)) return primary;
+  const secondary = parseMs(fallbackVal);
+  if(Number.isFinite(secondary)) return secondary;
+  return 0;
+};
+const compareByNewest = (a, b)=>{
+  const diff = getSortTimestamp(b?.tarih || b?.date, b?.created_at) - getSortTimestamp(a?.tarih || a?.date, a?.created_at);
+  if(diff !== 0) return diff;
+  const bId = String(b?.id || '').localeCompare(String(a?.id || ''), 'tr', { numeric: true, sensitivity: 'base' });
+  if(bId !== 0) return bId;
+  return String(b?.numara || '').localeCompare(String(a?.numara || ''), 'tr', { numeric: true, sensitivity: 'base' });
+};
 
 function ymd(dateStrOrDate){
   const d = (dateStrOrDate instanceof Date) ? dateStrOrDate : new Date(dateStrOrDate);
@@ -455,9 +482,15 @@ function renderDash(){
 
   const filteredUrun = URUNLER.filter(u => u.para_birimi === curr);
   let totalStockVal = 0;
-  filteredUrun.forEach(u => { totalStockVal += (Number(u.stok_miktar) || 0) * (Number(u.satis_fiyat) || 0); });
+  let totalCostVal = 0;
+  filteredUrun.forEach(u => {
+    totalStockVal += (Number(u.stok_miktar) || 0) * (Number(u.satis_fiyat) || 0);
+    totalCostVal += (Number(u.stok_miktar) || 0) * (Number(u.alis_fiyat) || 0);
+  });
   document.getElementById('dashStokDeger').innerHTML =
     `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalStockVal, curr)}`;
+  document.getElementById('dashUrunMaliyet').innerHTML =
+    `<span style="font-size:0.6em; color:#94a3b8">${filteredUrun.length} Çeşit</span><br>${fmt(totalCostVal, curr)}`;
 
   let totalSales = 0;
   FATURALAR
@@ -1427,7 +1460,7 @@ function renderUrunler(){
 ========================================================= */
 async function fetchFaturalar(){
   const { data }=await supa.from("faturalar").select("*, cariler(ad,tel)").order("tarih",{ascending:false});
-  FATURALAR=data||[];
+  FATURALAR=(data||[]).sort(compareByNewest);
 }
 
 // Otomatik fatura numarası (madde 6)
@@ -1719,7 +1752,7 @@ function renderFaturalar(){
   faturaListe.innerHTML="";
 
   const filters = getFaturaFilters();
-  let list = FATURALAR.slice();
+  let list = FATURALAR.slice().sort(compareByNewest);
 
   if(filters.cari) list = list.filter(f=>f.cari_id==filters.cari);
   if(filters.tip)  list = list.filter(f=>normalizeTip(f.tip)==filters.tip);
@@ -1822,7 +1855,7 @@ function renderFaturalar(){
    KASA & HAREKETLER
 ========================================================= */
 async function fetchHesaplar(){ const { data } = await supa.from("kasa_hesaplar").select("*"); HESAPLAR=data||[]; }
-async function fetchHareketler(){ const { data }=await supa.from("kasa_hareketler").select("*").order("tarih",{ascending:false}); HAREKETLER=data||[]; }
+async function fetchHareketler(){ const { data }=await supa.from("kasa_hareketler").select("*").order("tarih",{ascending:false}); HAREKETLER=(data||[]).sort(compareByNewest); }
 
 function resetKasaForm() {
   EDIT_HAREKET_ID = null;
@@ -2236,7 +2269,7 @@ window.cpSatisiTamamla = async ()=>{
     user_id: USER.id,
     tip: "satis",
     cari_id: ACTIVE_CARI_ID,
-    tarih: nowLocalDT(),
+    tarih: nowLocalDTWithSeconds(),
     numara,
     genel_toplam: total,
     para_birimi: pb
@@ -2303,7 +2336,7 @@ window.cpFinansIsle = async () => {
     cari_id: ACTIVE_CARI_ID,
     tur: tur,
     tutar: tutar,
-    tarih: nowLocalDT(),
+    tarih: nowLocalDTWithSeconds(),
     aciklama: kayitAciklama
   });
   if(error) return showToast(error.message, "error");
@@ -2343,7 +2376,7 @@ async function cpHareketleriGetir(){
     rawTur: h.tur
   }));
 
-  CP_HAREKETLER = [...fList,...kList].sort((a,b)=>new Date(b.tarih)-new Date(a.tarih));
+  CP_HAREKETLER = [...fList,...kList].sort(compareByNewest);
   renderCpHareketler(CP_HAREKETLER);
 }
 function renderCpHareketler(list){
@@ -2493,7 +2526,7 @@ window.openEkstre = async (cariId) => {
   const cari = CARILER.find(c => c.id == cariId); if(!cari) return;
   document.getElementById('ekstreBaslik').innerHTML = `${cari.ad} <span style="font-size:14px; color:#94a3b8">Ekstresi</span>`;
 
-  const musteriFaturalari = FATURALAR.filter(f => f.cari_id == cariId);
+  const musteriFaturalari = FATURALAR.filter(f => f.cari_id == cariId).slice().sort(compareByNewest);
   const faturaIds = musteriFaturalari.map(f => f.id);
 
   const { data: kalemler } = await supa.from('fatura_kalemler')
@@ -2521,7 +2554,7 @@ window.openEkstre = async (cariId) => {
     tblUrunler.innerHTML = "<tr><td colspan='6' style='text-align:center'>Ürün hareketi yok.</td></tr>";
   }
 
-  const odemeler = HAREKETLER.filter(h => h.cari_id == cariId);
+  const odemeler = HAREKETLER.filter(h => h.cari_id == cariId).slice().sort(compareByNewest);
   const tblOdemeler = document.getElementById('ekstreOdemeler'); tblOdemeler.innerHTML = "";
   if(odemeler.length > 0) {
     odemeler.forEach(h => {
@@ -3223,7 +3256,7 @@ window.addTahsilatFromDetay = async () => {
       cari_id: f.cari_id,
       tur: 'tahsilat',
       tutar,
-      tarih: nowLocalDT(),
+      tarih: nowLocalDTWithSeconds(),
       aciklama: `Fatura tahsilatı: ${f.numara || f.id}`
     });
     if(e1) throw e1;
