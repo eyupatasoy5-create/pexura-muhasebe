@@ -849,22 +849,32 @@ function drawPexuraLogo(doc, x, y) {
 
 function drawPdfInfoRows(doc, rows, opts = {}) {
   const labelX = opts.labelX || 40;
-  const valueX = opts.valueX || 165;
+  const valueX = opts.valueX || 180;
   const startY = opts.startY || 70;
   const rowGap = opts.rowGap || 18;
-  const valueWidth = opts.valueWidth || 340;
+  const labelWidth = opts.labelWidth || 105;
+  const valueWidth = opts.valueWidth || 310;
+  const lineH = opts.lineH || 12;
   let y = startY;
 
   rows.forEach(([label, value]) => {
+    const labelText = `${safePdfText(label)}:`;
+    const valueText = safePdfText(value);
+    const labelLines = doc.splitTextToSize(labelText, labelWidth);
+    const valueLines = doc.splitTextToSize(valueText, valueWidth);
+    const blockLines = Math.max(labelLines.length, valueLines.length);
+
     applyPdfFont(doc, 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${safePdfText(label)}:`, labelX, y);
+    if (doc.setCharSpace) doc.setCharSpace(0);
+    doc.text(labelLines, labelX, y, { lineHeightFactor: 1.15 });
 
     applyPdfFont(doc, 'normal');
     doc.setTextColor(15, 23, 42);
-    const split = doc.splitTextToSize(safePdfText(value), valueWidth);
-    doc.text(split, valueX, y);
-    y += Math.max(rowGap, split.length * 12);
+    if (doc.setCharSpace) doc.setCharSpace(0);
+    doc.text(valueLines, valueX, y, { lineHeightFactor: 1.15 });
+
+    y += Math.max(rowGap, blockLines * lineH + 6);
   });
 
   return y;
@@ -960,7 +970,9 @@ function addPexuraPdfBranding(doc, opts = {}) {
 }
 
 function safePdfText(val) {
-  return String(val == null ? '-' : val);
+  return String(val == null ? '-' : val)
+    .replace(/\s+/g, ' ')
+    .trim() || '-';
 }
 
 
@@ -971,6 +983,7 @@ function applyPdfFont(doc, style = 'normal') {
   } catch (e) {
     doc.setFont('helvetica', style === 'bold' ? 'bold' : 'normal');
   }
+  if (doc.setCharSpace) doc.setCharSpace(0);
 }
 
 function toTitleCaseTr(str) {
@@ -1056,12 +1069,8 @@ window.downloadCariPanelKasaPdf = async (hareketId) => {
 
     doc.setDrawColor(203, 213, 225);
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(40, 76, 515, 188, 10, 10, 'FD');
-
-    applyPdfFont(doc, 'normal');
-    doc.setFontSize(10);
     const aciklamaPdf = getPlainHareketAciklama(h);
-    let y = drawPdfInfoRows(doc, [
+    const infoRows = [
       ['Müşteri', toTitleCaseTr(cari.ad || '-')],
       ['Telefon', cari.tel || '-'],
       ['Tarih', pdfTarih],
@@ -1071,9 +1080,16 @@ window.downloadCariPanelKasaPdf = async (hareketId) => {
       ['İşlem Öncesi Bakiye', fmt(oncekiBorc, pb)],
       ['İşlem Sonrası Kalan', fmt(mevcutBakiye, pb)],
       ['Açıklama', aciklamaPdf]
-    ], { labelX: 58, valueX: 190, startY: 100, rowGap: 18, valueWidth: 330 });
+    ];
 
-    const noteY = y + 12;
+    applyPdfFont(doc, 'normal');
+    doc.setFontSize(10);
+    const infoBoxY = 76;
+    const infoBoxH = 210;
+    doc.roundedRect(40, infoBoxY, 515, infoBoxH, 10, 10, 'FD');
+    let y = drawPdfInfoRows(doc, infoRows, { labelX: 58, valueX: 190, startY: 100, rowGap: 18, labelWidth: 108, valueWidth: 305, lineH: 12 });
+
+    const noteY = Math.max(y + 12, infoBoxY + infoBoxH + 14);
     const noteLines = [
       'Alışverişimiz Sadece Kredi Kartı ve Nakit İledir.',
       "Ödemeleri Lütfen Aşağıdaki IBAN'a Gönderiniz.",
@@ -1085,7 +1101,16 @@ window.downloadCariPanelKasaPdf = async (hareketId) => {
     ];
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
-    doc.roundedRect(40, noteY, 515, 138, 8, 8, 'FD');
+    const noteTextLines = [];
+    noteLines.forEach(line => {
+      if (!line) {
+        noteTextLines.push('');
+      } else {
+        noteTextLines.push(...doc.splitTextToSize(line, 485));
+      }
+    });
+    const noteBoxH = Math.max(138, 34 + noteTextLines.length * 14);
+    doc.roundedRect(40, noteY, 515, noteBoxH, 8, 8, 'FD');
     applyPdfFont(doc, 'bold');
     doc.setFontSize(11.5);
     doc.setTextColor(15, 23, 42);
@@ -1094,16 +1119,7 @@ window.downloadCariPanelKasaPdf = async (hareketId) => {
     doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42);
 
-    let noteText = [];
-    noteLines.forEach(line => {
-      if (!line) {
-        noteText.push('');
-      } else {
-        const pieces = doc.splitTextToSize(line, 485);
-        noteText = noteText.concat(pieces);
-      }
-    });
-    doc.text(noteText, 54, noteY + 42, { lineHeightFactor: 1.45 });
+    doc.text(noteTextLines, 54, noteY + 42, { lineHeightFactor: 1.25, maxWidth: 485 });
 
     drawPdfSignature(doc, { signer: 'Pexura Tech', title: 'Yetkili İmza' });
 
@@ -2287,7 +2303,7 @@ window.cpFinansIsle = async () => {
     cari_id: ACTIVE_CARI_ID,
     tur: tur,
     tutar: tutar,
-    tarih: todayStr(),
+    tarih: nowLocalDT(),
     aciklama: kayitAciklama
   });
   if(error) return showToast(error.message, "error");
