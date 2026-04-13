@@ -716,35 +716,36 @@ async function generateAndSharePDF(fatura, mode = 'download') {
   try {
     if (!window.jspdf) { showToast("PDF kütüphanesi eksik.", "error"); return; }
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
-    // Kalemler
     const { data: kalemler } = await supa
       .from('fatura_kalemler')
       .select('*')
       .eq('fatura_id', fatura.id);
 
-    // Cari bilgisi
     const { data: cari } = await supa
       .from('cariler')
       .select('ad, tel, acilis_borc, acilis_alacak')
       .eq('id', fatura.cari_id)
       .single();
 
-    const cariAd = cari?.ad || 'Bilinmiyor';
-    const cariTel = cari?.tel || '';
+    const cariAd = (cari?.ad || 'Bilinmiyor');
+    const cariTel = (cari?.tel || '');
+    const pb = (fatura.para_birimi || 'TL');
+    const araToplam = toNum(fatura.ara_toplam) || (kalemler || []).reduce((a, k) => a + (toNum(k.miktar) * toNum(k.birim_fiyat)), 0);
+    const kdvToplam = toNum(fatura.kdv_toplam) || 0;
+    const genelToplam = toNum(fatura.genel_toplam) || (araToplam + kdvToplam);
+    const odenen = toNum(fatura.odenen_tutar) || 0;
+    const kalan = Math.max(0, genelToplam - odenen);
 
-    // --- Güncel borç hesapla (DB'den, para birimi bazlı) ---
     let guncelBorc = 0;
     try {
-      // Cari faturaları (aynı para birimi)
       const { data: cariFaturalar } = await supa
         .from('faturalar')
-        .select('tip, genel_toplam, para_birimi')
+        .select('tip, genel_toplam, para_birimi, odenen_tutar')
         .eq('cari_id', fatura.cari_id)
-        .eq('para_birimi', fatura.para_birimi);
+        .eq('para_birimi', pb);
 
-      // Kasa hareketleri + hesap para birimi
       const { data: hareketler } = await supa
         .from('kasa_hareketler')
         .select('tur, tutar, hesap_id, cari_id')
@@ -755,120 +756,136 @@ async function generateAndSharePDF(fatura, mode = 'download') {
         .select('id, para_birimi');
 
       const hesapPB = new Map((hesaplar || []).map(h => [String(h.id), h.para_birimi]));
-
       let borc = 0;
       let alacak = 0;
 
-      // faturalar: satis borca ekler, iade alacağa ekler (borçtan düşer)
       (cariFaturalar || []).forEach(ff => {
         const tip = normalizeTip(ff.tip);
-        if (tip === 'satis') borc += toNum(ff.genel_toplam);
-        if (tip === 'iade') alacak += toNum(ff.genel_toplam);
+        const ffKalan = Math.max(0, toNum(ff.genel_toplam) - toNum(ff.odenen_tutar));
+        if (tip === 'satis') borc += ffKalan;
+        if (tip === 'iade') alacak += ffKalan;
       });
 
-      // tahsilat: alacağa eklenir (borçtan düşer) - sadece ilgili PB
       (hareketler || []).forEach(h => {
-        if (h.tur !== 'tahsilat') return;
-        const pb = hesapPB.get(String(h.hesap_id)) || null;
-        if (pb && pb !== fatura.para_birimi) return;
-        alacak += toNum(h.tutar);
+        const hpb = hesapPB.get(String(h.hesap_id)) || null;
+        if (hpb && hpb !== pb) return;
+        if (h.tur === 'tahsilat') alacak += toNum(h.tutar);
+        if (h.tur === 'odeme') borc += toNum(h.tutar);
       });
 
-      // açılış
       borc += toNum(cari?.acilis_borc);
       alacak += toNum(cari?.acilis_alacak);
-
       guncelBorc = borc - alacak;
     } catch (e) {
-      // DB hesabı olmazsa local fallback
-      if (typeof hesaplaBakiye === "function") guncelBorc = hesaplaBakiye(fatura.cari_id);
+      if (typeof hesaplaBakiye === 'function') guncelBorc = hesaplaBakiye(fatura.cari_id);
     }
 
-    // --- PDF Tasarım (ekran bozmadan, sadece PDF) ---
+    const belgeBaslik = trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI');
+    const pdfTarih = formatDateTR(fatura.tarih);
+
     addPexuraPdfBranding(doc, {
-      title: trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI'),
+      title: belgeBaslik,
       subtitle: `Belge No: ${fatura.numara || fatura.id}`,
       footerLeft: `PEXURA TECH • Cari: ${safePdfText(cariAd)}`,
-      footerRight: `Tarih: ${formatDateTR(fatura.tarih)}`
+      footerRight: `Tarih: ${pdfTarih}`
     });
 
-    const belgeBaslik = trFix(normalizeTip(fatura.tip) === 'satis' ? 'SATIS FATURASI' : 'IADE FATURASI');
     doc.setTextColor(15, 23, 42);
     applyPdfFont(doc, 'bold');
     doc.setFontSize(15);
-    doc.text(belgeBaslik, 14, 48);
+    doc.text(`FATURA • ${fatura.numara || ''}`, 40, 62);
 
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(14, 56, 182, 38, 4, 4, 'FD');
-    applyPdfFont(doc, 'normal');
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(40, 76, 515, 54, 10, 10, 'FD');
+    applyPdfFont(doc, 'bold');
     doc.setFontSize(10);
-    doc.text(`Tarih: ${formatDateTR(fatura.tarih)}`, 20, 68);
-    doc.text(`Fatura No: ${fatura.numara || '-'}`, 20, 80);
-    doc.text(`Cari: ${trFix(cariAd)}`, 110, 68);
-    doc.text(`Telefon: ${trFix(cariTel || '-')}`, 110, 80);
+    doc.text(`Müşteri: ${trFix(cariAd)}`, 58, 96);
+    doc.text(`Telefon: ${trFix(cariTel || '-')}`, 336, 96);
+    applyPdfFont(doc, 'normal');
+    doc.text(`Tarih: ${pdfTarih}`, 58, 112);
+    doc.text(`Para Birimi: ${pb}`, 336, 112);
 
-    // Tablo (ekstra ürün = fatura kalemleri)
     const tableData = (kalemler || []).map(k => [
       trFix(k.urun_ad_snapshot || 'Silinmis Urun'),
       String(k.miktar || 0),
-      fmt(k.birim_fiyat, fatura.para_birimi),
-      fmt(k.satir_tutar, fatura.para_birimi)
+      fmt(k.birim_fiyat, pb),
+      fmt(k.satir_tutar, pb)
     ]);
 
-    const startY = 104;
-
     doc.autoTable({
-      startY,
+      startY: 130,
+      margin: { left: 40, right: 40 },
       head: [['Ürün', 'Miktar', 'Birim Fiyat', 'Tutar']],
       body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10, cellPadding: 3 },
+      theme: 'striped',
+      tableWidth: 515,
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', lineColor: [30, 41, 59], lineWidth: 0 },
+      bodyStyles: { textColor: [15, 23, 42], lineColor: [226, 232, 240], lineWidth: 0, fillColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { fontSize: 10, cellPadding: { top: 6, right: 8, bottom: 6, left: 8 }, overflow: 'linebreak', font: 'DejaVuSans' },
       columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 40 }
-      },
-      foot: [['', '', 'GENEL TOPLAM', fmt(fatura.genel_toplam, fatura.para_birimi)]],
-      footStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' }
+        0: { cellWidth: 255 },
+        1: { cellWidth: 70, halign: 'center' },
+        2: { cellWidth: 95, halign: 'right' },
+        3: { cellWidth: 95, halign: 'right' }
+      }
     });
 
-    // Güncel borç (GENEL TOPLAM altı)
-    const yAfter = doc.lastAutoTable?.finalY || (startY + 20);
-    const etiket = guncelBorc > 0 ? 'Guncel Borc' : (guncelBorc < 0 ? 'Guncel Alacak' : 'Guncel Bakiye');
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(14, yAfter + 4, 182, 30, 4, 4, 'FD');
-    doc.setFontSize(10);
-    doc.setTextColor(30, 41, 59);
-    applyPdfFont(doc, 'bold');
-    doc.text(`${etiket}:`, 20, yAfter + 16);
-    applyPdfFont(doc, 'normal');
-    doc.text(`${fmt(guncelBorc, fatura.para_birimi)}`, 72, yAfter + 16);
+    const afterTableY = doc.lastAutoTable?.finalY || 170;
+    const summaryY = afterTableY + 12;
+    const summaryX = 314;
+    const summaryW = 241;
+    const summaryH = 90;
 
-    drawPdfNoteBox(doc, 'Bu fatura PEXURA TECH tarafindan olusturulmustur. Musteri arsivi, tahsilat takibi ve resmi bilgilendirme icin kullanilabilir.', yAfter + 40, { x: 14, w: 182, title: 'NOTLAR' });
-    drawPdfSignature(doc, { signer: 'PEXURA TECH', title: 'Yetkili Imza', x: 150, y: 274 });
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(summaryX, summaryY, summaryW, summaryH, 10, 10, 'FD');
+    applyPdfFont(doc, 'bold');
+    doc.setFontSize(9.8);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Ara Toplam:', summaryX + 18, summaryY + 18);
+    doc.text('KDV Toplam:', summaryX + 18, summaryY + 36);
+    doc.text('Genel Toplam:', summaryX + 18, summaryY + 54);
+    doc.text('Ödenen:', summaryX + 18, summaryY + 72);
+    doc.text('Kalan:', summaryX + 18, summaryY + 90);
+    applyPdfFont(doc, 'normal');
+    doc.text(fmt(araToplam, pb), summaryX + summaryW - 18, summaryY + 18, { align: 'right' });
+    doc.text(fmt(kdvToplam, pb), summaryX + summaryW - 18, summaryY + 36, { align: 'right' });
+    doc.text(fmt(genelToplam, pb), summaryX + summaryW - 18, summaryY + 54, { align: 'right' });
+    doc.text(fmt(odenen, pb), summaryX + summaryW - 18, summaryY + 72, { align: 'right' });
+    doc.text(fmt(kalan, pb), summaryX + summaryW - 18, summaryY + 90, { align: 'right' });
+
+    drawPdfNoteBox(doc, getTahsilatPdfNoteLines(), summaryY + summaryH + 14, {
+      x: 40,
+      w: 515,
+      title: 'Notlar',
+      minHeight: 136,
+      titleSize: 11,
+      textSize: 9.6,
+      lineHeight: 12,
+      paddingX: 16,
+      titleY: 18,
+      textY: 38
+    });
+
+    drawPdfSignature(doc, { signer: 'PEXURA TECH', title: 'Yetkili Imza', x: 430, y: 740 });
 
     const fileName = `Pexura_Fatura_${fatura.numara || fatura.id}.pdf`;
+    doc.save(fileName);
+    addPdfHistory(fatura);
 
-    if (mode === 'download') {
-      doc.save(fileName);
-      addPdfHistory(fatura);
-    } else if (mode === 'whatsapp') {
-      doc.save(fileName);
-      addPdfHistory(fatura);
+    if (mode === 'whatsapp') {
       if (cariTel) {
         const cleanPhone = cleanPhoneTR(cariTel);
-        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent("Sayın " + cariAd + ", faturanız ektedir.")}`, '_blank');
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent('Sayın ' + cariAd + ', faturanız ektedir.')}`, '_blank');
       } else {
-        showToast("Müşteri telefonu yok.", "warning");
+        showToast('Müşteri telefonu yok.', 'warning');
       }
     }
   } catch (err) {
     console.error(err);
-    showToast("PDF Hatası: " + (err?.message || err), "error");
+    showToast('PDF Hatası: ' + (err?.message || err), 'error');
   }
 }
 
@@ -926,24 +943,62 @@ function drawPdfInfoRows(doc, rows, opts = {}) {
   return y;
 }
 
-function drawPdfNoteBox(doc, text, y, opts = {}) {
+function getTahsilatPdfNoteLines() {
+  return [
+    'Alisverisimiz Sadece Kredi Karti ve Nakit Iledir.',
+    "Odemeleri Lutfen Asagidaki IBAN'a Gonderiniz.",
+    'Gonderdikten Sonra Bilgi Vermeyi Unutmayiniz.',
+    '',
+    'Hasan Atasoy',
+    'TR17 0001 0004 8893 2779 6550 01',
+    'Ziraat Bankasi'
+  ];
+}
+
+function measurePdfNoteBox(doc, text, opts = {}) {
   const x = opts.x || 40;
   const w = opts.w || 515;
-  const title = opts.title || 'NOT';
-  const lines = doc.splitTextToSize(safePdfText(text), w - 24);
-  const h = Math.max(54, 24 + lines.length * 12);
+  const paddingX = opts.paddingX || 14;
+  const textY = opts.textY || 42;
+  const lineHeight = opts.lineHeight || 13.2;
+  const rawLines = Array.isArray(text) ? text : [safePdfText(text)];
+  const lines = [];
+  rawLines.forEach(line => {
+    const normalized = String(line || '');
+    if (!normalized) {
+      lines.push('');
+    } else {
+      lines.push(...doc.splitTextToSize(normalized, w - (paddingX * 2)));
+    }
+  });
+  const height = Math.max(opts.minHeight || 138, textY + lines.length * lineHeight + 12);
+  return { x, w, lines, height };
+}
+
+function drawPdfNoteBox(doc, text, y, opts = {}) {
+  const metrics = measurePdfNoteBox(doc, text, opts);
+  const x = metrics.x;
+  const w = metrics.w;
+  const lines = metrics.lines;
+  const h = metrics.height;
+  const title = opts.title || 'Notlar';
+  const paddingX = opts.paddingX || 14;
+  const titleY = opts.titleY || 20;
+  const textY = opts.textY || 42;
+  const titleSize = opts.titleSize || 11.5;
+  const textSize = opts.textSize || 10.5;
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
   doc.roundedRect(x, y, w, h, 8, 8, 'FD');
   applyPdfFont(doc, 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(30, 41, 59);
-  doc.text(title, x + 12, y + 18);
+  doc.setFontSize(titleSize);
+  doc.setTextColor(15, 23, 42);
+  doc.text(title, x + paddingX, y + titleY);
   applyPdfFont(doc, 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text(lines, x + 12, y + 34);
+  doc.setFontSize(textSize);
+  doc.setTextColor(15, 23, 42);
+  doc.text(lines, x + paddingX, y + textY, { lineHeightFactor: 1.25, maxWidth: w - (paddingX * 2) });
   return y + h;
 }
 
@@ -1129,43 +1184,22 @@ window.downloadCariPanelKasaPdf = async (hareketId) => {
     ];
 
     applyPdfFont(doc, 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     const infoBoxY = 76;
-    const infoBoxH = 210;
+    const infoBoxH = 236;
     doc.roundedRect(40, infoBoxY, 515, infoBoxH, 10, 10, 'FD');
-    let y = drawPdfInfoRows(doc, infoRows, { labelX: 58, valueX: 190, startY: 100, rowGap: 18, labelWidth: 108, valueWidth: 305, lineH: 12 });
-
-    const noteY = Math.max(y + 12, infoBoxY + infoBoxH + 14);
-    const noteLines = [
-      'Alışverişimiz Sadece Kredi Kartı ve Nakit İledir.',
-      "Ödemeleri Lütfen Aşağıdaki IBAN'a Gönderiniz.",
-      'Gönderdikten Sonra Bilgi Vermeyi Unutmayınız.',
-      '',
-      'Hasan Atasoy',
-      'TR17 0001 0004 8893 2779 6550 01',
-      'Ziraat Bankası'
-    ];
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(203, 213, 225);
-    const noteTextLines = [];
-    noteLines.forEach(line => {
-      if (!line) {
-        noteTextLines.push('');
-      } else {
-        noteTextLines.push(...doc.splitTextToSize(line, 485));
-      }
+    let y = drawPdfInfoRows(doc, infoRows, {
+      labelX: 58,
+      valueX: 212,
+      startY: 98,
+      rowGap: 22,
+      labelWidth: 128,
+      valueWidth: 250,
+      lineH: 13
     });
-    const noteBoxH = Math.max(138, 34 + noteTextLines.length * 14);
-    doc.roundedRect(40, noteY, 515, noteBoxH, 8, 8, 'FD');
-    applyPdfFont(doc, 'bold');
-    doc.setFontSize(11.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text('Notlar', 54, noteY + 20);
-    applyPdfFont(doc, 'normal');
-    doc.setFontSize(10.5);
-    doc.setTextColor(15, 23, 42);
 
-    doc.text(noteTextLines, 54, noteY + 42, { lineHeightFactor: 1.25, maxWidth: 485 });
+    const noteY = Math.max(y + 14, infoBoxY + infoBoxH + 16);
+    drawPdfNoteBox(doc, getTahsilatPdfNoteLines(), noteY, { title: 'Notlar' });
 
     drawPdfSignature(doc, { signer: 'Pexura Tech', title: 'Yetkili İmza' });
 
@@ -3212,7 +3246,7 @@ window.downloadFaturaPdfFromDetay = async () => {
     doc.text(`${fmt(odenen, pb)}`, 540, y+42, { align: 'right' });
     doc.text(`${fmt(kalan, pb)}`, 540, y+56, { align: 'right' });
 
-    drawPdfNoteBox(doc, 'Bu fatura PEXURA TECH tarafindan olusturulmustur. Musteriye gonderim, arsivleme ve odeme takibi icin kullanilabilir.', y + 78, { x: 40, w: 515, title: 'NOTLAR' });
+    drawPdfNoteBox(doc, getTahsilatPdfNoteLines(), y + 78, { x: 40, w: 515, title: 'Notlar' });
     drawPdfSignature(doc, { signer: 'PEXURA TECH', title: 'Yetkili Imza' });
 
     doc.save(`Fatura-${f.numara || f.id}.pdf`);
