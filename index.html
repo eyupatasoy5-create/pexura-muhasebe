@@ -560,7 +560,13 @@
     <div class="grid" style="grid-template-columns: 1fr 1fr; gap:20px;">
       <!-- SEPET -->
       <div class="card" style="padding:18px;">
-        <h3 style="margin-top:0; color:#4ade80;">🛒 Hızlı Satış / Sepet</h3>
+        <h3 style="margin-top:0; color:#4ade80;">🛒 Hızlı Satış / İade</h3>
+
+        <label>İşlem Tipi</label>
+        <select id="cpIslemTipi" onchange="cpIslemTipiDegisti()">
+          <option value="satis">Satış</option>
+          <option value="iade">İade</option>
+        </select>
 
         <label>Ürün Seç</label>
         <select id="cpUrunSelect" onchange="cpUrunSecildi()"></select>
@@ -600,7 +606,7 @@
           <b id="cpKarToplam">0.00</b>
         </div>
 
-        <button class="success" style="width:100%; margin-top:12px;" onclick="cpSatisiTamamla()">SATIŞI TAMAMLA (FATURA OLUŞTUR)</button>
+        <button id="cpSatisBtn" class="success" style="width:100%; margin-top:12px;" onclick="cpSatisiTamamla()">SATIŞI TAMAMLA (FATURA OLUŞTUR)</button>
       </div>
 
       <!-- FİNANS -->
@@ -634,10 +640,15 @@
         <tbody id="cpHareketListe"></tbody>
       </table>
 
-      <button onclick="document.getElementById('modalCariPanel').classList.add('hide'); openEkstre(ACTIVE_CARI_ID)"
-        style="width:100%; margin-top:10px; background:transparent; border:1px dashed #475569; color:#94a3b8;">
-        Detaylı Ekstre Görüntüle
-      </button>
+      <div class="row" style="margin-top:10px;">
+        <button onclick="document.getElementById('modalCariPanel').classList.add('hide'); openEkstre(ACTIVE_CARI_ID)"
+          style="background:transparent; border:1px dashed #475569; color:#94a3b8;">
+          Detaylı Ekstre Görüntüle
+        </button>
+        <button class="info" onclick="downloadCariEkstrePdf(ACTIVE_CARI_ID)">
+          Müşteri Ekstre PDF
+        </button>
+      </div>
     </div>
 
   </div>
