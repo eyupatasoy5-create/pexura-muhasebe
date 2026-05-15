@@ -331,8 +331,39 @@
 
         <div class="card" style="grid-column: span 8;">
           <h2>Ürünler</h2>
-          <table class="responsive-table">
-            <thead><tr><th>Resim</th><th>Kod</th><th>Ad</th><th>Stok</th><th>Fiyat</th><th>İşlem</th></tr></thead>
+          <div class="urun-toolbar">
+            <div class="urun-search-wrap">
+              <input id="urunSearchInput" placeholder="Ürün adı, kodu veya birimi ara..." />
+              <button id="urunSearchClear" type="button">Temizle</button>
+            </div>
+            <select id="urunSortSelect">
+              <option value="ad-asc">İsme Göre A-Z</option>
+              <option value="ad-desc">İsme Göre Z-A</option>
+              <option value="kod-asc">Koda Göre Artan</option>
+              <option value="kod-desc">Koda Göre Azalan</option>
+              <option value="stok-desc">Stok Çoktan Aza</option>
+              <option value="stok-asc">Stok Azdan Çoğa</option>
+            </select>
+            <div class="urun-title-settings-wrap">
+              <button id="urunTitleSettingsBtn" type="button" class="urun-title-settings-btn" title="Ürün adı yazı ayarları">✏️ Yazı</button>
+              <div id="urunTitleSettingsPanel" class="urun-title-settings-panel hide">
+                <label>Renk <input id="urunTitleColor" type="color" value="#f8fafc"></label>
+                <label>Boyut
+                  <select id="urunTitleSize">
+                    <option value="16">16</option>
+                    <option value="18" selected>18</option>
+                    <option value="20">20</option>
+                    <option value="22">22</option>
+                    <option value="24">24</option>
+                    <option value="28">28</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <span id="urunSonucSayisi" class="urun-result-count"></span>
+          </div>
+          <table class="responsive-table urun-table">
+            <thead><tr><th>Resim</th><th>Kod</th><th>Ürün / Stok / Fiyat / İşlem</th><th></th></tr></thead>
             <tbody id="uListe"></tbody>
           </table>
         </div>

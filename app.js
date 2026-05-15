@@ -16,6 +16,12 @@ let IS_IMG_REMOVED = false;
 let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[];
 let FATURA_SATIRLAR=[];
 
+// Ürün listesi arama/sıralama
+let URUN_ARAMA = '';
+let URUN_SORT = 'ad-asc';
+let URUN_TITLE_COLOR = localStorage.getItem('urunTitleColor') || '#f8fafc';
+let URUN_TITLE_SIZE = localStorage.getItem('urunTitleSize') || '18';
+
 // --- Müşteri Paneli Sepet ---
 let ACTIVE_CARI_ID = null;
 let CP_SEPET = [];
@@ -1473,23 +1479,85 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
   resetUrunForm(); await fetchUrunler(); fillSelects(); renderUrunler();
 };
 
+function getUrunSatisIadeOzet(urunId){
+  const faturaMap = new Map((FATURALAR||[]).map(f => [String(f.id), f]));
+  let satilan = 0;
+  let iade = 0;
+
+  (TUM_KALEMLER||[]).forEach(k=>{
+    if(String(k.urun_id) !== String(urunId)) return;
+    const f = faturaMap.get(String(k.fatura_id));
+    const tip = normalizeTip(f?.tip || 'satis');
+    const miktar = toNum(k.miktar);
+    if(tip === 'iade') iade += miktar;
+    else satilan += miktar;
+  });
+
+  return { satilan, iade, netSatilan: satilan - iade };
+}
+
+function getFilteredSortedUrunler(){
+  const q = String(URUN_ARAMA || '').trim().toLocaleLowerCase('tr-TR');
+  let liste = [...(URUNLER||[])];
+
+  if(q){
+    liste = liste.filter(u => [u.ad, u.kod, u.birim, u.para_birimi].some(v => String(v||'').toLocaleLowerCase('tr-TR').includes(q)));
+  }
+
+  liste.sort((a,b)=>{
+    if(URUN_SORT === 'kod-asc') return String(a.kod||'').localeCompare(String(b.kod||''), 'tr', { numeric:true, sensitivity:'base' });
+    if(URUN_SORT === 'kod-desc') return String(b.kod||'').localeCompare(String(a.kod||''), 'tr', { numeric:true, sensitivity:'base' });
+    if(URUN_SORT === 'stok-asc') return toNum(a.stok_miktar) - toNum(b.stok_miktar);
+    if(URUN_SORT === 'stok-desc') return toNum(b.stok_miktar) - toNum(a.stok_miktar);
+    if(URUN_SORT === 'ad-desc') return String(b.ad||'').localeCompare(String(a.ad||''), 'tr', { numeric:true, sensitivity:'base' });
+    return String(a.ad||'').localeCompare(String(b.ad||''), 'tr', { numeric:true, sensitivity:'base' });
+  });
+
+  return liste;
+}
+
 function renderUrunler(){
   uListe.innerHTML="";
-  URUNLER.forEach(u=>{
+  const liste = getFilteredSortedUrunler();
+  const sonucEl = document.getElementById('urunSonucSayisi');
+  if(sonucEl) sonucEl.textContent = `${liste.length} ürün gösteriliyor`;
+
+  if(liste.length === 0){
+    const tr=document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" style="text-align:center;padding:28px;color:#94a3b8;">Aramanıza uygun ürün bulunamadı.</td>`;
+    uListe.appendChild(tr);
+    return;
+  }
+
+  liste.forEach(u=>{
     const krit = Number(u.stok_miktar||0) <= Number(u.min_stok||0);
+    const ozet = getUrunSatisIadeOzet(u.id);
+    const kalan = toNum(u.stok_miktar);
     const delBtn = USER_ROLE==='admin' ? `<button class="danger" data-del="${u.id}">Sil</button>` : '';
     const editBtn = USER_ROLE==='admin' ? `<button class="warning" data-edit="${u.id}">Düzenle</button>` : '';
     const imgHtml = u.resim_url
       ? `<img src="${u.resim_url}" class="urun-img" onclick="openImageModal('${u.resim_url}')">`
-      : `<div style="width:250px;height:250px;background:#334155;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#94a3b8;border:3px dashed #475569;text-align:center;">Resim<br>Yok</div>`;
+      : `<div class="urun-img-placeholder">Resim<br>Yok</div>`;
     const tr=document.createElement("tr");
+    tr.className = 'urun-row';
     tr.innerHTML=`
-      <td data-label="Resim" style="padding: 20px;">${imgHtml}</td>
-      <td data-label="Kod" style="font-size:16px;">${u.kod||""}</td>
-      <td data-label="Ad" style="font-weight:bold;font-size:18px;">${u.ad} ${krit?'<br><span class="tag" style="background:red;color:white;margin-top:5px">KRİTİK</span>':""}</td>
-      <td data-label="Stok" style="font-size:16px;">${u.stok_miktar} ${u.birim||""}</td>
-      <td data-label="Fiyat" style="font-size:18px;color:#4ade80;font-weight:bold;">${fmt(u.satis_fiyat, u.para_birimi)}</td>
-      <td data-label="İşlem"><div style="display:flex;gap:10px;align-items:center;height:250px;">${editBtn}${delBtn}</div></td>`;
+      <td data-label="Resim" class="urun-img-cell">${imgHtml}</td>
+      <td data-label="Kod" class="urun-kod">${u.kod||"-"}</td>
+      <td data-label="Ürün / Stok Durumu" class="urun-ad-cell">
+        <div class="urun-info-box">
+          <div class="urun-ad-title">${u.ad||'-'} ${krit?'<span class="tag critical-tag">KRİTİK</span>':""}</div>
+          <div class="urun-stock-summary">
+            <span><small>Satılan</small><b>${ozet.netSatilan}</b></span>
+            <span><small>İade</small><b>${ozet.iade}</b></span>
+            <span><small>Kalan</small><b>${kalan}</b><em>${u.birim||''}</em></span>
+            <span><small>Min. Stok</small><b>${toNum(u.min_stok)}</b></span>
+            <span class="urun-price-box alis"><small>Alış</small><b>${fmt(u.alis_fiyat, u.para_birimi)}</b></span>
+            <span class="urun-price-box satis"><small>Satış</small><b>${fmt(u.satis_fiyat, u.para_birimi)}</b></span>
+          </div>
+          ${USER_ROLE==='admin' ? `<div class="urun-row-actions">${editBtn}${delBtn}</div>` : ''}
+        </div>
+      </td>
+      <td data-label="İşlem" class="urun-actions"></td>`;
     uListe.appendChild(tr);
   });
 
@@ -1527,10 +1595,65 @@ function renderUrunler(){
         b.textContent="Güncelle"; b.classList.add('warning');
         window.scrollTo(0,0);
         showToast("Ürün bilgileri yüklendi", "info");
-      }
+      };
     });
   }
 }
+
+function initUrunListeControls(){
+  const search = document.getElementById('urunSearchInput');
+  const sort = document.getElementById('urunSortSelect');
+  const clear = document.getElementById('urunSearchClear');
+  const titleColor = document.getElementById('urunTitleColor');
+  const titleSize = document.getElementById('urunTitleSize');
+  const titleSettingsBtn = document.getElementById('urunTitleSettingsBtn');
+  const titleSettingsPanel = document.getElementById('urunTitleSettingsPanel');
+  document.documentElement.style.setProperty('--urun-title-color', URUN_TITLE_COLOR);
+  document.documentElement.style.setProperty('--urun-title-size', `${URUN_TITLE_SIZE}px`);
+  if(titleColor) titleColor.value = URUN_TITLE_COLOR;
+  if(titleSize) titleSize.value = URUN_TITLE_SIZE;
+  if(search && !search.dataset.bound){
+    search.dataset.bound = '1';
+    search.addEventListener('input', ()=>{ URUN_ARAMA = search.value; renderUrunler(); });
+    search.addEventListener('keypress', (e)=>{ if(e.key === 'Enter'){ URUN_ARAMA = search.value; renderUrunler(); } });
+  }
+  if(sort && !sort.dataset.bound){
+    sort.dataset.bound = '1';
+    sort.addEventListener('change', ()=>{ URUN_SORT = sort.value; renderUrunler(); });
+  }
+  if(clear && !clear.dataset.bound){
+    clear.dataset.bound = '1';
+    clear.addEventListener('click', ()=>{
+      URUN_ARAMA = '';
+      if(search) search.value = '';
+      renderUrunler();
+    });
+  }
+  if(titleSettingsBtn && titleSettingsPanel && !titleSettingsBtn.dataset.bound){
+    titleSettingsBtn.dataset.bound = '1';
+    titleSettingsBtn.addEventListener('click', ()=>{
+      titleSettingsPanel.classList.toggle('hide');
+    });
+  }
+  if(titleColor && !titleColor.dataset.bound){
+    titleColor.dataset.bound = '1';
+    titleColor.addEventListener('input', ()=>{
+      URUN_TITLE_COLOR = titleColor.value || '#f8fafc';
+      localStorage.setItem('urunTitleColor', URUN_TITLE_COLOR);
+      document.documentElement.style.setProperty('--urun-title-color', URUN_TITLE_COLOR);
+    });
+  }
+  if(titleSize && !titleSize.dataset.bound){
+    titleSize.dataset.bound = '1';
+    titleSize.addEventListener('change', ()=>{
+      URUN_TITLE_SIZE = titleSize.value || '18';
+      localStorage.setItem('urunTitleSize', URUN_TITLE_SIZE);
+      document.documentElement.style.setProperty('--urun-title-size', `${URUN_TITLE_SIZE}px`);
+    });
+  }
+}
+
+setTimeout(initUrunListeControls, 0);
 
 /* =========================================================
    FATURALAR (madde 2,6,10,11)
@@ -2172,6 +2295,7 @@ function fillSelects(){
 }
 
 function renderAll(){
+  initUrunListeControls();
   renderCariler();
   renderUrunler();
   renderHesaplar();

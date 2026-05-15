@@ -596,3 +596,267 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
 @media (max-width: 768px){
   .table-scroll-compact{max-height:320px;}
 }
+
+
+/* Ürün listesi: arama, sıralama ve simetrik görünüm */
+:root{ --urun-title-color:#f8fafc; --urun-title-size:18px; }
+.urun-toolbar{
+  display:grid;
+  grid-template-columns:minmax(260px, 1fr) 220px 310px auto;
+  gap:12px;
+  align-items:center;
+  padding:0 24px 18px 24px;
+}
+.urun-search-wrap{display:flex; gap:8px; align-items:center;}
+.urun-search-wrap input,.urun-toolbar select{margin-bottom:0; height:40px;}
+.urun-search-wrap button{height:40px; padding:0 14px; border-radius:6px; border:1px solid var(--border); background:#0f172a; color:var(--text); cursor:pointer;}
+.urun-title-tools{display:grid; grid-template-columns:130px 1fr; gap:10px; align-items:end;}
+.urun-title-tools label{margin:0; font-size:11px; color:#94a3b8;}
+.urun-title-tools input[type="color"]{height:40px; padding:4px; margin:4px 0 0 0;}
+.urun-title-tools select{margin-top:4px;}
+.urun-result-count{color:var(--text-muted); font-size:12px; text-align:right; white-space:nowrap;}
+.urun-table th,.urun-table td{text-align:center; vertical-align:middle;}
+.urun-table th:nth-child(3),.urun-table td:nth-child(3){text-align:left;}
+.urun-table th:nth-child(1),.urun-table td:nth-child(1){width:260px;}
+.urun-table th:nth-child(2),.urun-table td:nth-child(2){width:80px;}
+.urun-table th:nth-child(4),.urun-table td:nth-child(4),
+.urun-table th:nth-child(5),.urun-table td:nth-child(5){width:145px;}
+.urun-table th:nth-child(6),.urun-table td:nth-child(6){width:130px;}
+.urun-img-cell{width:260px; padding:18px!important;}
+.urun-img-placeholder{width:230px;height:230px;background:#334155;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#94a3b8;border:3px dashed #475569;text-align:center;margin:auto;}
+.urun-kod{font-size:16px; font-weight:800; color:#dbeafe; text-align:center;}
+.urun-ad-cell{padding-left:26px!important; padding-right:26px!important;}
+.urun-info-box{display:flex; flex-direction:column; justify-content:center; min-height:230px;}
+.urun-ad-title{font-size:var(--urun-title-size); font-weight:800; color:var(--urun-title-color); margin-bottom:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.urun-stock-summary{display:grid; grid-template-columns:repeat(4,minmax(86px,1fr)); gap:10px; max-width:560px;}
+.urun-stock-summary span,.urun-price-box{background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:10px 10px; color:#94a3b8; text-align:center; min-height:74px; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.urun-stock-summary small,.urun-price-box small{display:block; color:#94a3b8; font-size:12px; margin-bottom:3px;}
+.urun-stock-summary b,.urun-price-box b{display:block; color:#fff; font-size:17px; line-height:1.2; white-space:nowrap;}
+.urun-stock-summary em{display:block; color:#94a3b8; font-style:normal; font-size:11px; margin-top:2px; min-height:14px;}
+.critical-tag{background:#ef4444!important; color:white!important; margin-left:6px;}
+.urun-price-cell{padding-left:12px!important; padding-right:12px!important;}
+.urun-price-box{min-width:112px; margin:auto;}
+.urun-price-box.alis b{color:#fbbf24;}
+.urun-price-box.satis b{color:#4ade80;}
+.urun-actions>div{display:flex; gap:8px; justify-content:center; align-items:center; min-height:230px;}
+
+@media(max-width: 1100px){
+  .urun-toolbar{grid-template-columns:1fr 220px; padding:0 16px 16px 16px;}
+  .urun-title-tools{grid-column:1 / -1;}
+  .urun-result-count{text-align:left;}
+}
+@media(max-width: 900px){
+  .urun-toolbar{grid-template-columns:1fr;}
+  .urun-title-tools{grid-template-columns:1fr 1fr;}
+  .urun-stock-summary{grid-template-columns:1fr 1fr;}
+  .urun-actions>div{min-height:auto; justify-content:flex-start;}
+}
+
+/* Ürün ekranı son düzeltme: fiyatlar ürün kutusunda, yazı ayarı kalemle açılır */
+.urun-toolbar{
+  grid-template-columns:minmax(260px, 1fr) 220px auto auto!important;
+  gap:10px!important;
+  padding:0 24px 16px 24px!important;
+}
+.urun-title-tools{display:none!important;}
+.urun-title-settings-wrap{position:relative; display:flex; justify-content:center; align-items:center;}
+.urun-title-settings-btn{
+  height:40px; padding:0 13px; border-radius:7px;
+  border:1px solid var(--border); background:#0f172a; color:#e2e8f0;
+  font-weight:700; cursor:pointer; white-space:nowrap;
+}
+.urun-title-settings-btn:hover{border-color:var(--primary); color:#fff;}
+.urun-title-settings-panel{
+  position:absolute; top:46px; right:0; z-index:20;
+  width:220px; padding:12px; border:1px solid var(--border); border-radius:10px;
+  background:#172338; box-shadow:0 12px 30px rgba(0,0,0,.35);
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+}
+.urun-title-settings-panel label{margin:0; font-size:11px; color:#94a3b8; font-weight:700;}
+.urun-title-settings-panel input[type="color"]{height:36px; padding:4px; margin:5px 0 0 0;}
+.urun-title-settings-panel select{height:36px; margin:5px 0 0 0; padding:6px 8px;}
+.urun-table{table-layout:fixed; width:100%;}
+.urun-table th:nth-child(1),.urun-table td:nth-child(1){width:260px!important;}
+.urun-table th:nth-child(2),.urun-table td:nth-child(2){width:90px!important;}
+.urun-table th:nth-child(3),.urun-table td:nth-child(3){width:auto!important; text-align:left!important;}
+.urun-table th:nth-child(4),.urun-table td:nth-child(4){width:130px!important; text-align:center!important;}
+.urun-info-box{min-height:230px; align-items:flex-start; justify-content:center;}
+.urun-ad-title{width:100%; justify-content:flex-start; margin-bottom:18px;}
+.urun-stock-summary{
+  display:grid!important;
+  grid-template-columns:repeat(6, minmax(82px, 1fr))!important;
+  gap:10px!important;
+  width:100%; max-width:780px!important;
+}
+.urun-stock-summary span,.urun-price-box{
+  min-width:0!important; min-height:74px!important; margin:0!important;
+  border-radius:9px!important; padding:10px 8px!important;
+}
+.urun-price-cell{display:none!important;}
+.urun-price-box.alis b{color:#fbbf24!important;}
+.urun-price-box.satis b{color:#4ade80!important;}
+.urun-actions>div{min-height:230px;}
+@media(max-width: 1280px){
+  .urun-stock-summary{grid-template-columns:repeat(3, minmax(90px, 1fr))!important; max-width:520px!important;}
+}
+@media(max-width: 900px){
+  .urun-toolbar{grid-template-columns:1fr!important; padding:0 16px 16px 16px!important;}
+  .urun-title-settings-panel{right:auto; left:0;}
+  .urun-table{table-layout:auto;}
+  .urun-stock-summary{grid-template-columns:repeat(2, minmax(110px,1fr))!important;}
+}
+
+
+/* Ürün listesi buton simetri final */
+.urun-table{
+  table-layout:fixed!important;
+}
+.urun-table th:nth-child(1), .urun-table td:nth-child(1){
+  width:250px!important;
+  text-align:center!important;
+}
+.urun-table th:nth-child(2), .urun-table td:nth-child(2){
+  width:82px!important;
+  text-align:center!important;
+}
+.urun-table th:nth-child(3), .urun-table td:nth-child(3){
+  width:auto!important;
+  text-align:center!important;
+}
+.urun-table th:nth-child(4), .urun-table td:nth-child(4){
+  display:none!important;
+}
+.urun-row{
+  min-height:245px;
+}
+.urun-img-cell{
+  vertical-align:middle!important;
+}
+.urun-img-cell .urun-img,
+.urun-img-cell .urun-img-placeholder{
+  display:block;
+  margin:0 auto!important;
+}
+.urun-kod{
+  vertical-align:middle!important;
+  text-align:center!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  color:#dbeafe!important;
+}
+.urun-info-box{
+  min-height:245px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:14px!important;
+  padding:14px 0!important;
+}
+.urun-ad-title{
+  width:100%!important;
+  margin:0!important;
+  justify-content:center!important;
+  text-align:center!important;
+  line-height:1.15!important;
+}
+.urun-stock-summary{
+  display:grid!important;
+  grid-template-columns:repeat(6, 92px)!important;
+  justify-content:center!important;
+  align-items:stretch!important;
+  gap:10px!important;
+  width:100%!important;
+  max-width:none!important;
+  margin:0 auto!important;
+}
+.urun-stock-summary span,
+.urun-stock-summary .urun-price-box{
+  width:92px!important;
+  min-width:92px!important;
+  max-width:92px!important;
+  height:74px!important;
+  min-height:74px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  margin:0!important;
+  padding:8px 6px!important;
+  border:1px solid #334155!important;
+  border-radius:9px!important;
+  background:#0f172a!important;
+}
+.urun-stock-summary small{
+  display:block!important;
+  font-size:12px!important;
+  color:#93c5fd!important;
+  line-height:1.1!important;
+  margin:0 0 4px 0!important;
+}
+.urun-stock-summary b{
+  display:block!important;
+  font-size:18px!important;
+  line-height:1.05!important;
+}
+.urun-stock-summary em{
+  display:block!important;
+  min-height:14px!important;
+  font-size:11px!important;
+  color:#94a3b8!important;
+  line-height:1.1!important;
+  margin-top:2px!important;
+}
+.urun-row-actions{
+  display:flex!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:10px!important;
+  width:100%!important;
+  margin:0 auto!important;
+  padding-top:2px!important;
+}
+.urun-row-actions button{
+  width:96px!important;
+  height:34px!important;
+  margin:0!important;
+  border-radius:7px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  text-align:center!important;
+}
+.urun-actions{
+  display:none!important;
+}
+
+@media(max-width: 1280px){
+  .urun-stock-summary{
+    grid-template-columns:repeat(3, 96px)!important;
+    max-width:318px!important;
+  }
+}
+@media(max-width: 900px){
+  .urun-table, .urun-table tbody, .urun-table tr, .urun-table td{
+    display:block!important;
+    width:100%!important;
+  }
+  .urun-table thead{display:none!important;}
+  .urun-row{
+    padding:16px!important;
+    border-bottom:1px solid var(--border)!important;
+  }
+  .urun-img-cell, .urun-kod, .urun-ad-cell{
+    text-align:center!important;
+  }
+  .urun-stock-summary{
+    grid-template-columns:repeat(2, 112px)!important;
+    max-width:236px!important;
+  }
+  .urun-stock-summary span,
+  .urun-stock-summary .urun-price-box{
+    width:112px!important;
+    min-width:112px!important;
+    max-width:112px!important;
+  }
+}
