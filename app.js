@@ -1554,6 +1554,24 @@ function getUrunGercekSatisIadeOzet(urunId){
   return { satilan, iade, netSatilan: satilan - iade };
 }
 
+// Ürün bazlı gerçek kâr: liste fiyatından değil, müşteriye kesilen fatura kalemlerindeki
+// gerçek birim fiyatlardan hesaplanır. İade faturaları kârdan düşülür.
+function getUrunFaturaKari(urunId){
+  const faturaMap = new Map((FATURALAR||[]).map(f => [String(f.id), f]));
+  let kar = 0;
+  (TUM_KALEMLER||[]).forEach(k=>{
+    if(String(k.urun_id) !== String(urunId)) return;
+    const f = faturaMap.get(String(k.fatura_id));
+    const tip = normalizeTip(f?.tip || 'satis');
+    const miktar = toNum(k.miktar);
+    const gercekSatisFiyati = toNum(k.birim_fiyat);
+    const alisFiyati = toNum(k.alis_fiyat_snapshot);
+    const satirKar = (gercekSatisFiyati - alisFiyati) * miktar;
+    kar += (tip === 'iade') ? -satirKar : satirKar;
+  });
+  return kar;
+}
+
 function getUrunSatisIadeOzet(urunId){
   const u = URUNLER.find(x => String(x.id) === String(urunId));
   const real = getUrunGercekSatisIadeOzet(urunId);
@@ -1716,7 +1734,7 @@ function renderUrunler(){
     const krit = Number(u.stok_miktar||0) <= Number(u.min_stok||0);
     const ozet = getUrunSatisIadeOzet(u.id);
     const kalan = toNum(u.stok_miktar);
-    const urunKar = calcLineProfit(u.alis_fiyat, u.satis_fiyat, ozet.satilan);
+    const urunKar = getUrunFaturaKari(u.id);
     const delBtn = USER_ROLE==='admin' ? `<button class="danger" data-del="${u.id}">Sil</button>` : '';
     const editBtn = USER_ROLE==='admin' ? `<button class="warning" data-edit="${u.id}">Düzenle</button>` : '';
     const imgHtml = u.resim_url
