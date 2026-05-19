@@ -945,3 +945,13 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   .urun-stock-summary{grid-template-columns:repeat(2, 112px)!important; max-width:236px!important;}
   .urun-row-actions{grid-template-columns:repeat(2, 112px)!important;}
 }
+
+
+/* Ürün listesi anlık kâr kutusu */
+.urun-price-box.kar {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.08);
+}
+.urun-price-box.kar b {
+  color: #4ade80;
+}

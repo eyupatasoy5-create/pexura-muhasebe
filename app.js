@@ -1716,6 +1716,7 @@ function renderUrunler(){
     const krit = Number(u.stok_miktar||0) <= Number(u.min_stok||0);
     const ozet = getUrunSatisIadeOzet(u.id);
     const kalan = toNum(u.stok_miktar);
+    const urunKar = calcLineProfit(u.alis_fiyat, u.satis_fiyat, ozet.satilan);
     const delBtn = USER_ROLE==='admin' ? `<button class="danger" data-del="${u.id}">Sil</button>` : '';
     const editBtn = USER_ROLE==='admin' ? `<button class="warning" data-edit="${u.id}">Düzenle</button>` : '';
     const imgHtml = u.resim_url
@@ -1735,6 +1736,7 @@ function renderUrunler(){
             <span class="count-card"><small>Kalan</small><b>${ozet.kalan}</b><em>${u.birim||''}</em>${USER_ROLE==='admin' ? `<button class="count-pencil" title="Kalanı düzenle" data-count-field="kalan" data-count-id="${u.id}">✎</button>` : ''}</span>
             <span class="urun-price-box alis"><small>Alış</small><b>${fmt(u.alis_fiyat, u.para_birimi)}</b></span>
             <span class="urun-price-box satis"><small>Satış</small><b>${fmt(u.satis_fiyat, u.para_birimi)}</b></span>
+            <span class="urun-price-box kar"><small>Kâr</small><b>${fmt(urunKar, u.para_birimi)}</b></span>
           </div>
           ${USER_ROLE==='admin' ? `<div class="urun-row-actions"><button class="secondary" data-count-clear="${u.id}">Sayı Sil</button>${editBtn}${delBtn}</div>` : ''}
         </div>
