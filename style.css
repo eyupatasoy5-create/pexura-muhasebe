@@ -809,7 +809,8 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   margin-top:2px!important;
 }
 .urun-row-actions{
-  display:flex!important;
+  display:grid!important;
+  grid-template-columns:repeat(4, 104px)!important;
   justify-content:center!important;
   align-items:center!important;
   gap:10px!important;
@@ -818,13 +819,26 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   padding-top:2px!important;
 }
 .urun-row-actions button{
-  width:96px!important;
+  width:104px!important;
   height:34px!important;
   margin:0!important;
   border-radius:7px!important;
   font-size:12px!important;
   font-weight:800!important;
   text-align:center!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  white-space:normal!important;
+  line-height:1.05!important;
+}
+.urun-row-actions button.secondary{
+  color:#cbd5e1!important;
+  border-color:#64748b!important;
+  background:rgba(100,116,139,0.18)!important;
+}
+.urun-row-actions button.secondary:hover{
+  background:rgba(100,116,139,0.28)!important;
 }
 .urun-actions{
   display:none!important;
@@ -859,4 +873,75 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
     min-width:112px!important;
     max-width:112px!important;
   }
+}
+
+@media(max-width: 920px){
+  .urun-row-actions{grid-template-columns:repeat(2, 104px)!important;}
+}
+
+/* Satılan / İade / Kalan ayrı kalem düzenleme */
+.urun-stock-summary .count-card{
+  position:relative!important;
+  padding-right:26px!important;
+}
+.count-pencil{
+  position:absolute!important;
+  right:6px!important;
+  bottom:6px!important;
+  width:22px!important;
+  height:22px!important;
+  min-width:22px!important;
+  padding:0!important;
+  margin:0!important;
+  border-radius:6px!important;
+  border:1px solid rgba(16,185,129,.45)!important;
+  background:rgba(16,185,129,.12)!important;
+  color:#34d399!important;
+  font-size:13px!important;
+  line-height:1!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  cursor:pointer!important;
+}
+.count-pencil:hover{
+  background:rgba(16,185,129,.22)!important;
+  color:#6ee7b7!important;
+}
+.urun-row-actions{
+  grid-template-columns:repeat(3, 104px)!important;
+}
+@media(max-width: 1280px){
+  .urun-row-actions{grid-template-columns:repeat(3, 104px)!important;}
+}
+@media(max-width: 900px){
+  .urun-row-actions{grid-template-columns:repeat(2, 104px)!important;}
+}
+
+/* Stabil sayı düzenleme: Satılan / İade / Kalan kalemleri */
+.urun-stock-summary{
+  grid-template-columns:repeat(5, minmax(92px, 1fr))!important;
+  max-width:660px!important;
+  align-items:stretch!important;
+}
+.urun-stock-summary .count-card:nth-child(1) b{color:#f87171!important;}
+.urun-stock-summary .count-card:nth-child(2) b{color:#60a5fa!important;}
+.urun-stock-summary .count-card:nth-child(3) b{color:#34d399!important;}
+.count-pencil{font-weight:900!important;}
+.urun-row-actions{
+  grid-template-columns:repeat(3, 112px)!important;
+  gap:10px!important;
+}
+.urun-row-actions button{
+  width:112px!important;
+  min-width:112px!important;
+  height:34px!important;
+}
+@media(max-width:1280px){
+  .urun-stock-summary{grid-template-columns:repeat(3, 104px)!important; max-width:332px!important;}
+  .urun-row-actions{grid-template-columns:repeat(3, 112px)!important;}
+}
+@media(max-width:900px){
+  .urun-stock-summary{grid-template-columns:repeat(2, 112px)!important; max-width:236px!important;}
+  .urun-row-actions{grid-template-columns:repeat(2, 112px)!important;}
 }

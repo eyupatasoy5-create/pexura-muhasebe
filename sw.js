@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v5';
+const CACHE_NAME = 'pexura-v6-sayi-duzeltme';
 const ASSETS = [
   '/',
   '/index.html',

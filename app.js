@@ -215,34 +215,65 @@ async function logStockMove({urunId, degisim, tur="manual", kaynak=null, kaynak_
   }
 }
 
+function getUrunById(urunId){
+  return (URUNLER||[]).find(u => String(u.id) === String(urunId));
+}
+
+function getGroupedSaleMiktarlari(satirlar){
+  const map = new Map();
+  (satirlar||[]).forEach(s=>{
+    const id = String(s.urun_id);
+    map.set(id, toNum(map.get(id)) + toNum(s.miktar));
+  });
+  return map;
+}
+
+function validateSaleStock(satirlar, extraAvailable = {}){
+  const grouped = getGroupedSaleMiktarlari(satirlar);
+  for(const [urunId, miktar] of grouped.entries()){
+    const urun = getUrunById(urunId);
+    const mevcut = toNum(urun?.stok_miktar) + toNum(extraAvailable[urunId]);
+    if(miktar > mevcut){
+      showToast(`Stok yetersiz! ${urun?.ad || 'Ürün'} için mevcut: ${mevcut}, istenen: ${miktar}`, "error");
+      return false;
+    }
+  }
+  return true;
+}
+
 async function applyStockChange(urunId, degisim, meta={}){
   try{
+    const urun = getUrunById(urunId);
+    const cur = Number(urun?.stok_miktar||0);
+    const yeniStokKontrol = cur + Number(degisim||0);
+    if(yeniStokKontrol < 0){
+      showToast(`Stok eksiye düşemez! ${urun?.ad || 'Ürün'} mevcut: ${cur}`, "error");
+      return false;
+    }
+
     // önce RPC dene
     const { error } = await supa.rpc("stok_guncelle", { p_urun_id: urunId, p_degisim: degisim });
     if(error){
       console.warn("stok_guncelle RPC çalışmadı, direkt update:", error);
-      const urun = URUNLER.find(u=>u.id==urunId);
-      const cur = Number(urun?.stok_miktar||0);
-      const yeni = cur + Number(degisim||0);
-      const res2 = await supa.from("urunler").update({ stok_miktar: yeni }).eq("id", urunId);
+      const res2 = await supa.from("urunler").update({ stok_miktar: yeniStokKontrol }).eq("id", urunId);
       if(res2.error) throw res2.error;
     }
+
+    if(urun) urun.stok_miktar = yeniStokKontrol;
 
     // stok hareket logu
     await logStockMove({urunId, degisim, ...meta});
 
-    // yeniden ürün çekip kritik stok bildirimi (madde 12)
-    const u = URUNLER.find(x=>x.id==urunId);
-    if(u){
-      const yeniStok = Number(u.stok_miktar||0) + Number(degisim||0);
-      if(yeniStok <= Number(u.min_stok||0)){
-        showToast(`"${u.ad}" kritik stok seviyesinde: ${yeniStok}`, "warning");
-      }
+    // kritik stok bildirimi (madde 12)
+    if(urun && yeniStokKontrol <= Number(urun.min_stok||0)){
+      showToast(`"${urun.ad}" kritik stok seviyesinde: ${yeniStokKontrol}`, "warning");
     }
+    return true;
 
   } catch(e){
     console.error("Stok güncelleme hatası:", e);
     showToast("Stok güncellenemedi: " + (e?.message||e), "error");
+    return false;
   }
 }
 
@@ -1479,11 +1510,39 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
   resetUrunForm(); await fetchUrunler(); fillSelects(); renderUrunler();
 };
 
-function getUrunSatisIadeOzet(urunId){
+const URUN_SAYI_DUZELTME_KEY = 'urunSayiDuzeltmeleri_v4';
+
+function getUrunSayiDuzeltmeleri(){
+  try{ return JSON.parse(localStorage.getItem(URUN_SAYI_DUZELTME_KEY) || '{}') || {}; }catch(e){ return {}; }
+}
+
+function getUrunSayiDuzeltme(urunId){
+  return getUrunSayiDuzeltmeleri()[String(urunId)] || null;
+}
+
+function setUrunSayiDuzeltme(urunId, data){
+  const all = getUrunSayiDuzeltmeleri();
+  const toplam_stok = Math.max(0, toNum(data.toplam_stok) || (toNum(data.satilan) + toNum(data.kalan)));
+  let satilan = Math.max(0, toNum(data.satilan));
+  const iade = Math.max(0, toNum(data.iade));
+  let kalan = Math.max(0, toNum(data.kalan));
+  // Ana kilit: Kalan stok, belirlenen toplam stoktan büyük kaydedilemez.
+  if(kalan > toplam_stok) kalan = toplam_stok;
+  satilan = Math.max(0, toplam_stok - kalan);
+  all[String(urunId)] = { satilan, iade, kalan, toplam_stok, updated_at: nowLocalDTWithSeconds() };
+  localStorage.setItem(URUN_SAYI_DUZELTME_KEY, JSON.stringify(all));
+}
+
+function clearUrunSayiDuzeltme(urunId){
+  const all = getUrunSayiDuzeltmeleri();
+  delete all[String(urunId)];
+  localStorage.setItem(URUN_SAYI_DUZELTME_KEY, JSON.stringify(all));
+}
+
+function getUrunGercekSatisIadeOzet(urunId){
   const faturaMap = new Map((FATURALAR||[]).map(f => [String(f.id), f]));
   let satilan = 0;
   let iade = 0;
-
   (TUM_KALEMLER||[]).forEach(k=>{
     if(String(k.urun_id) !== String(urunId)) return;
     const f = faturaMap.get(String(k.fatura_id));
@@ -1492,8 +1551,132 @@ function getUrunSatisIadeOzet(urunId){
     if(tip === 'iade') iade += miktar;
     else satilan += miktar;
   });
-
   return { satilan, iade, netSatilan: satilan - iade };
+}
+
+function getUrunSatisIadeOzet(urunId){
+  const u = URUNLER.find(x => String(x.id) === String(urunId));
+  const real = getUrunGercekSatisIadeOzet(urunId);
+  const manual = getUrunSayiDuzeltme(urunId);
+  if(manual){
+    const toplamLimit = Math.max(0, toNum(manual.toplam_stok) || (toNum(manual.satilan) + toNum(manual.kalan)));
+    let satilan = Math.max(0, toNum(manual.satilan));
+    let iade = Math.max(0, toNum(manual.iade));
+    let kalan = Math.max(0, toNum(manual.kalan));
+    // Güvenlik kilidi: Kalan hiçbir koşulda toplam stok limitini geçemez.
+    if(kalan > toplamLimit) kalan = toplamLimit;
+    if(satilan + kalan !== toplamLimit) satilan = Math.max(0, toplamLimit - kalan);
+    return { toplam_stok: toplamLimit, satilan, iade, kalan, netSatilan: satilan, manual:true };
+  }
+  const kalan = Math.max(0, toNum(u?.stok_miktar));
+  const satilanNet = Math.max(0, real.satilan - real.iade);
+  const toplam_stok = Math.max(0, satilanNet + kalan);
+  return { toplam_stok, satilan: satilanNet, iade: real.iade, kalan, netSatilan: satilanNet };
+}
+
+function validateUrunSayilari(data){
+  const satilan = toNum(data.satilan);
+  const iade = toNum(data.iade);
+  const kalan = toNum(data.kalan);
+  if(satilan < 0) return { ok:false, msg:'Satılan negatif olamaz' };
+  if(iade < 0) return { ok:false, msg:'İade negatif olamaz' };
+  if(kalan < 0) return { ok:false, msg:'Kalan negatif olamaz' };
+  if(toNum(data.toplam_stok) && kalan > toNum(data.toplam_stok)) return { ok:false, msg:`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toNum(data.toplam_stok)}` };
+  if(!Number.isFinite(satilan) || !Number.isFinite(iade) || !Number.isFinite(kalan)) return { ok:false, msg:'Geçerli bir sayı girin' };
+  return { ok:true };
+}
+
+async function applyUrunSayiDuzeltme(urunId, yeni){
+  const u = URUNLER.find(x => String(x.id) === String(urunId));
+  if(!u) return showToast('Ürün bulunamadı', 'error');
+  const toplam_stok = Math.max(0, toNum(yeni.toplam_stok) || (toNum(yeni.satilan) + toNum(yeni.kalan)));
+  const duzgun = {
+    satilan: Math.max(0, toNum(yeni.satilan)),
+    iade: Math.max(0, toNum(yeni.iade)),
+    kalan: Math.min(toplam_stok, Math.max(0, toNum(yeni.kalan))),
+    toplam_stok
+  };
+  duzgun.satilan = Math.max(0, toplam_stok - duzgun.kalan);
+  const kontrol = validateUrunSayilari(duzgun);
+  if(!kontrol.ok) return showToast(kontrol.msg, 'warning');
+  const oldRec = {...u, sayi_duzeltme_eski: getUrunSayiDuzeltme(urunId)};
+  await logAction('urunler', 'COUNT_ADJUST', urunId, oldRec);
+  const { error } = await supa.from('urunler').update({ stok_miktar: duzgun.kalan }).eq('id', urunId);
+  if(error) return showToast(error.message, 'error');
+  const degisim = duzgun.kalan - toNum(u.stok_miktar);
+  if(degisim !== 0){
+    await logStockMove({urunId, degisim, tur:'manual', kaynak:'urunler', kaynak_id:urunId, aciklama:'Ürün listesinden satılan/iade/kalan düzeltme'});
+  }
+  setUrunSayiDuzeltme(urunId, duzgun);
+  await fetchUrunler(); fillSelects(); renderUrunler();
+  showToast('Sayılar güncellendi', 'success');
+}
+
+async function updateUrunSayiAlani(urunId, field){
+  const u = URUNLER.find(x => String(x.id) === String(urunId));
+  if(!u) return showToast('Ürün bulunamadı', 'error');
+
+  const mevcut = getUrunSatisIadeOzet(urunId);
+  const labelMap = { satilan:'SATILAN', iade:'İADE', kalan:'KALAN' };
+  const toplamStok = Math.max(0, toNum(mevcut.satilan) + toNum(mevcut.kalan));
+
+  const val = prompt(
+    `${u.ad} için ${labelMap[field]} sayısını girin.
+` +
+    `Mevcut: Satılan ${mevcut.satilan} / İade ${mevcut.iade} / Kalan ${mevcut.kalan}
+` +
+    `Kural: Satılan artarsa hem iadeden hem kalandan düşer, satılan düşerse kalan artar. ` +
+    `İade artarsa kalan artar. Kalan hiçbir zaman toplam stok (${toplamStok}) üstüne çıkamaz.`,
+    String(mevcut[field])
+  );
+  if(val === null) return;
+
+  const girilen = Math.max(0, toNum(val));
+  if(!Number.isFinite(girilen)) return showToast('Geçerli bir sayı girin', 'warning');
+
+  const yeni = {
+    satilan: Math.max(0, toNum(mevcut.satilan)),
+    iade: Math.max(0, toNum(mevcut.iade)),
+    kalan: Math.max(0, toNum(mevcut.kalan)),
+    toplam_stok: toplamStok
+  };
+
+  if(field === 'satilan'){
+    // Yeni mantık: Satılan artarsa hem KALAN'dan hem de varsa İADE'den düşer.
+    // Satılan düşerse KALAN geri artar. Kalan hiçbir zaman toplam stok üstüne çıkamaz.
+    const eskiSatilan = Math.max(0, toNum(yeni.satilan));
+    const fark = girilen - eskiSatilan;
+    if(girilen > toplamStok) return showToast(`Satılan toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
+    if(fark > 0 && fark > yeni.kalan) return showToast(`Satılan bu kadar artırılamaz. Kalan stok: ${yeni.kalan}`, 'warning');
+    yeni.satilan = girilen;
+    if(fark > 0){
+      yeni.kalan = Math.max(0, yeni.kalan - fark);
+      yeni.iade = Math.max(0, yeni.iade - fark);
+    }else if(fark < 0){
+      yeni.kalan = Math.min(toplamStok, yeni.kalan + Math.abs(fark));
+    }
+  } else if(field === 'iade'){
+    // İade değişimi direkt SATILAN'dan düşer/geri ekler, KALAN'ı ters yönde ayarlar.
+    // Örnek: Satılan 10, İade 0, Kalan 5 iken iade 2 yapılırsa => Satılan 8, İade 2, Kalan 7.
+    // İade azaltılırsa da satılan artar, kalan azalır. Stok toplamı sabit kalır.
+    const eskiIade = Math.max(0, toNum(yeni.iade));
+    const fark = girilen - eskiIade;
+    if(fark > yeni.satilan) return showToast(`İade bu kadar artırılamaz. Satılan en fazla ${yeni.satilan} adet azaltılabilir.`, 'warning');
+    if(fark < 0 && Math.abs(fark) > yeni.kalan) return showToast(`İade bu kadar düşürülemez. Kalan stok eksiye düşer.`, 'warning');
+    yeni.iade = girilen;
+    yeni.satilan = Math.max(0, yeni.satilan - fark);
+    yeni.kalan = Math.min(toplamStok, Math.max(0, yeni.kalan + fark));
+  } else if(field === 'kalan'){
+    // Kalan elle değişirse satılan ters yönde ayarlanır; kalan toplam stok üstüne çıkamaz.
+    if(girilen > toplamStok) return showToast(`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
+    yeni.kalan = girilen;
+    yeni.satilan = toplamStok - girilen;
+  }
+
+  if(yeni.kalan < 0) return showToast('Kalan stok eksiye düşemez', 'warning');
+  if(yeni.kalan > toplamStok) return showToast(`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
+
+  await applyUrunSayiDuzeltme(urunId, yeni);
 }
 
 function getFilteredSortedUrunler(){
@@ -1543,18 +1726,17 @@ function renderUrunler(){
     tr.innerHTML=`
       <td data-label="Resim" class="urun-img-cell">${imgHtml}</td>
       <td data-label="Kod" class="urun-kod">${u.kod||"-"}</td>
-      <td data-label="Ürün / Stok Durumu" class="urun-ad-cell">
+      <td data-label="Ürün / Satılan - İade - Kalan" class="urun-ad-cell">
         <div class="urun-info-box">
           <div class="urun-ad-title">${u.ad||'-'} ${krit?'<span class="tag critical-tag">KRİTİK</span>':""}</div>
           <div class="urun-stock-summary">
-            <span><small>Satılan</small><b>${ozet.netSatilan}</b></span>
-            <span><small>İade</small><b>${ozet.iade}</b></span>
-            <span><small>Kalan</small><b>${kalan}</b><em>${u.birim||''}</em></span>
-            <span><small>Min. Stok</small><b>${toNum(u.min_stok)}</b></span>
+            <span class="count-card"><small>Satılan</small><b>${ozet.satilan}</b>${USER_ROLE==='admin' ? `<button class="count-pencil" title="Satılanı düzenle" data-count-field="satilan" data-count-id="${u.id}">✎</button>` : ''}</span>
+            <span class="count-card"><small>İade</small><b>${ozet.iade}</b>${USER_ROLE==='admin' ? `<button class="count-pencil" title="İadeyi düzenle" data-count-field="iade" data-count-id="${u.id}">✎</button>` : ''}</span>
+            <span class="count-card"><small>Kalan</small><b>${ozet.kalan}</b><em>${u.birim||''}</em>${USER_ROLE==='admin' ? `<button class="count-pencil" title="Kalanı düzenle" data-count-field="kalan" data-count-id="${u.id}">✎</button>` : ''}</span>
             <span class="urun-price-box alis"><small>Alış</small><b>${fmt(u.alis_fiyat, u.para_birimi)}</b></span>
             <span class="urun-price-box satis"><small>Satış</small><b>${fmt(u.satis_fiyat, u.para_birimi)}</b></span>
           </div>
-          ${USER_ROLE==='admin' ? `<div class="urun-row-actions">${editBtn}${delBtn}</div>` : ''}
+          ${USER_ROLE==='admin' ? `<div class="urun-row-actions"><button class="secondary" data-count-clear="${u.id}">Sayı Sil</button>${editBtn}${delBtn}</div>` : ''}
         </div>
       </td>
       <td data-label="İşlem" class="urun-actions"></td>`;
@@ -1572,6 +1754,25 @@ function renderUrunler(){
           await fetchUrunler(); renderUrunler();
           showToast("Ürün silindi", "success");
         }
+      };
+    });
+
+    uListe.querySelectorAll('[data-count-field]').forEach(btn=>{
+      btn.onclick=async ()=> updateUrunSayiAlani(btn.dataset.countId, btn.dataset.countField);
+    });
+
+    uListe.querySelectorAll("[data-count-clear]").forEach(btn=>{
+      btn.onclick=async ()=>{
+        const id = btn.dataset.countClear;
+        const u = URUNLER.find(x => String(x.id) === String(id));
+        if(!u) return;
+        if(!getUrunSayiDuzeltme(id)) return showToast("Silinecek sayı düzeltmesi yok", "info");
+        if(!confirm(`${u.ad} için manuel satılan/iade/kalan düzeltmesi silinsin mi?`)) return;
+        const oldRec = {...u, sayi_duzeltme_eski: getUrunSayiDuzeltme(id)};
+        await logAction('urunler', 'COUNT_ADJUST_CLEAR', id, oldRec);
+        clearUrunSayiDuzeltme(id);
+        renderUrunler();
+        showToast("Manuel sayı düzeltmesi silindi", "success");
       };
     });
 
@@ -1687,9 +1888,14 @@ document.getElementById('kalemEkleBtn').onclick=()=>{
   const fiyat=toNum(kFiyat.value);
   if(miktar<=0 || fiyat<0) return showToast("Miktar>0 ve fiyat>=0 olmalı","warning");
 
-  // stok yetersiz kontrol
-  if(normalizeTip(fTip.value)==='satis' && miktar>toNum(urun.stok_miktar)){
-    return showToast(`Stok yetersiz! Mevcut: ${urun.stok_miktar}`, "error");
+  // stok yetersiz kontrol: aynı üründen sepette varsa toplamı da hesaba kat
+  if(normalizeTip(fTip.value)==='satis'){
+    const sepetteki = FATURA_SATIRLAR
+      .filter(s => String(s.urun_id) === String(urun.id))
+      .reduce((t,s)=>t+toNum(s.miktar), 0);
+    if((sepetteki + miktar) > toNum(urun.stok_miktar)){
+      return showToast(`Stok yetersiz! Mevcut: ${urun.stok_miktar}, sepette: ${sepetteki}`, "error");
+    }
   }
 
   FATURA_SATIRLAR.push({
@@ -1823,6 +2029,20 @@ document.getElementById('fKaydetBtn').onclick=async ()=>{
 
   const total = calcFaturaTotals();
   const tipYeni = normalizeTip(fTip.value);
+
+  // Programın hiçbir yerinde satış stoku aşmasın.
+  let extraAvailableForEdit = {};
+  if(EDIT_FATURA_ID){
+    const eskiFaturaKontrol = FATURALAR.find(f => f.id == EDIT_FATURA_ID);
+    if(normalizeTip(eskiFaturaKontrol?.tip || 'satis') === 'satis'){
+      const { data: eskiKalemKontrol } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', EDIT_FATURA_ID);
+      (eskiKalemKontrol||[]).forEach(k=>{
+        const id = String(k.urun_id);
+        extraAvailableForEdit[id] = toNum(extraAvailableForEdit[id]) + toNum(k.miktar);
+      });
+    }
+  }
+  if(tipYeni === 'satis' && !validateSaleStock(FATURA_SATIRLAR, extraAvailableForEdit)) return;
 
   // numara otomatik (madde 6)
   if(!fNo.value) fNo.value = await getAutoFaturaNo();
@@ -2416,8 +2636,13 @@ window.cpSepeteEkle = () => {
   const islemTipi = document.getElementById('cpIslemTipi')?.value || 'satis';
 
   // Satışta stok düşeceği için kontrol et; iadede stok geri eklenecek.
-  if(islemTipi === 'satis' && adet > toNum(urun.stok_miktar)){
-    return showToast(`Stok yetersiz! Mevcut: ${urun.stok_miktar}`, "error");
+  if(islemTipi === 'satis'){
+    const sepetteki = CP_SEPET
+      .filter(s => String(s.urun_id) === String(urun.id) && (s.tip || 'satis') === 'satis')
+      .reduce((t,s)=>t+toNum(s.miktar), 0);
+    if((sepetteki + adet) > toNum(urun.stok_miktar)){
+      return showToast(`Stok yetersiz! Mevcut: ${urun.stok_miktar}, sepette: ${sepetteki}`, "error");
+    }
   }
 
   CP_SEPET.push({
@@ -2483,6 +2708,8 @@ window.cpSatisiTamamla = async ()=>{
 
   const tip = document.getElementById('cpIslemTipi')?.value || CP_SEPET[0]?.tip || 'satis';
   if(CP_SEPET.some(s => (s.tip || tip) !== tip)) return showToast("Aynı sepet içinde satış ve iade karıştırılamaz.", "warning");
+
+  if(tip === 'satis' && !validateSaleStock(CP_SEPET.filter(s => (s.tip || 'satis') === 'satis'))) return;
 
   const pb = CP_SEPET[0].para_birimi || "USD";
   const total = CP_SEPET.reduce((a,b)=>a+b.satir_tutar,0);
