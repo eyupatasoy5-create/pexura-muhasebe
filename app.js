@@ -2394,7 +2394,7 @@ function resetKasaForm() {
   EDIT_HAREKET_ID = null;
   kTutar.value = ""; kAciklama.value = ""; kTarih.value = todayStr();
   if(window.kOdemeTipi) kOdemeTipi.value = "nakit";
-  if(window.kKomisyonOran) kKomisyonOran.value = "";
+  if(window.kKomisyonOran) kKomisyonOran.value = "0";
   renderKomisyonOzet({tutarId:'kTutar', tipId:'kOdemeTipi', oranId:'kKomisyonOran', boxId:'kKomisyonOzet', hesapId:'kHesap', turId:'kTur'});
   const btn = document.getElementById('kEkleBtn');
   btn.textContent = "İşlemi Kaydet";
@@ -2734,6 +2734,10 @@ document.querySelectorAll(".navbtn").forEach(b => {
   const _kT = document.getElementById('kTarih');
   if(_fT) _fT.value = nowLocalDT();
   if(_kT) _kT.value = todayStr();
+  const _kKomisyon = document.getElementById('kKomisyonOran');
+  const _cpKomisyon = document.getElementById('cpKomisyonOran');
+  if(_kKomisyon) _kKomisyon.value = "0";
+  if(_cpKomisyon) _cpKomisyon.value = "0";
 })();
 ['kTutar','kOdemeTipi','kKomisyonOran','kHesap','kTur'].forEach(id => {
   const el = document.getElementById(id);
@@ -2773,6 +2777,7 @@ window.openCariPanel = async (id) => {
   document.getElementById('cpSepetToplam').textContent = "0.00";
   document.getElementById('cpFinansTutar').value = "";
   document.getElementById('cpFinansAciklama').value = "";
+  if(document.getElementById('cpKomisyonOran')) document.getElementById('cpKomisyonOran').value = "0";
   setCpFinansTur('tahsilat');
   const refreshCpFinance = () => {
     cpTahsilatOzetGuncelle();
@@ -3027,7 +3032,7 @@ window.cpFinansIsle = async () => {
   document.getElementById('cpFinansTutar').value = "";
   document.getElementById('cpFinansAciklama').value = "";
   if(document.getElementById('cpOdemeTipi')) document.getElementById('cpOdemeTipi').value = "nakit";
-  if(document.getElementById('cpKomisyonOran')) document.getElementById('cpKomisyonOran').value = "";
+  if(document.getElementById('cpKomisyonOran')) document.getElementById('cpKomisyonOran').value = "0";
   renderKomisyonOzet({tutarId:'cpFinansTutar', tipId:'cpOdemeTipi', oranId:'cpKomisyonOran', boxId:'cpKomisyonOzet', hesapId:'cpKasaSelect', turId:'cpFinansTur'});
   await fetchAll(); renderAll();
   await cpVerileriGuncelle();
