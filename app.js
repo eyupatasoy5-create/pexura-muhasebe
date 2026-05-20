@@ -148,8 +148,10 @@ window.openImageModal = (src) => { if (!src) return; document.getElementById('im
 window.closeImageModal = () => { document.getElementById('modalImageView').classList.add('hide'); }
 
 function setAppView(mode) {
+  localStorage.setItem('pexuraViewMode', mode);
   if (mode === 'mobile') { document.body.classList.add('force-mobile'); document.body.classList.remove('force-desktop'); showToast("Mobil görünüm aktif.", "info"); } 
   else { document.body.classList.add('force-desktop'); document.body.classList.remove('force-mobile'); showToast("PC görünümü aktif.", "info"); }
+  updateFab(document.querySelector('.navbtn.active')?.dataset.tab || 'dash');
 }
 
 /* =========================================================
@@ -297,6 +299,34 @@ async function login(){
   await loadSession();
 }
 async function logout(){ await supa.auth.signOut(); location.reload(); }
+function toggleChangePassword(show){
+  const box = document.getElementById('changePassBox');
+  if(!box) return;
+  box.classList.toggle('hide', !show);
+  if(show){
+    document.getElementById('newAuthPass')?.focus();
+  } else {
+    const pass1 = document.getElementById('newAuthPass');
+    const pass2 = document.getElementById('newAuthPass2');
+    if(pass1) pass1.value = '';
+    if(pass2) pass2.value = '';
+  }
+}
+async function changePassword(){
+  if(!USER) return showToast("Şifre değiştirmek için önce giriş yapın.", "warning");
+
+  const pass1 = document.getElementById('newAuthPass')?.value.trim() || '';
+  const pass2 = document.getElementById('newAuthPass2')?.value.trim() || '';
+
+  if(pass1.length < 6) return showToast("Yeni şifre en az 6 karakter olmalı.", "warning");
+  if(pass1 !== pass2) return showToast("Şifreler aynı değil.", "warning");
+
+  const { error } = await supa.auth.updateUser({ password: pass1 });
+  if(error) return showToast(error.message, "error");
+
+  toggleChangePassword(false);
+  showToast("Şifre başarıyla değiştirildi.", "success");
+}
 
 async function loadSession(){
   const { data } = await supa.auth.getUser();
@@ -334,6 +364,9 @@ function applyRolePermissions(){
 document.getElementById('btnRegister').onclick=register;
 document.getElementById('btnLogin').onclick=login;
 document.getElementById('btnLogout').onclick=logout;
+document.getElementById('btnShowChangePass')?.addEventListener('click', ()=> toggleChangePassword(true));
+document.getElementById('btnCancelChangePass')?.addEventListener('click', ()=> toggleChangePassword(false));
+document.getElementById('btnChangePass')?.addEventListener('click', changePassword);
 
 /* =========================================================
    DATA FETCH
@@ -2544,11 +2577,56 @@ function renderAll(){
   renderFaturalar();
   renderDash();
   renderPdfHistory();
+  applyResponsiveTableLabels();
 }
 
 /* =========================================================
    NAV
 ========================================================= */
+function applyResponsiveTableLabels(){
+  document.querySelectorAll('table.responsive-table').forEach(table => {
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim().replace(/\s+/g, ' '));
+    if(!headers.length) return;
+
+    table.querySelectorAll('tbody tr').forEach(row => {
+      Array.from(row.children).forEach((cell, idx) => {
+        if(cell.tagName !== 'TD' || cell.getAttribute('data-label')) return;
+        const label = headers[idx] || '';
+        if(label) cell.setAttribute('data-label', label);
+      });
+    });
+  });
+}
+
+function setupMobileShell(){
+  const setVh = () => document.documentElement.style.setProperty('--app-vh', `${window.innerHeight * 0.01}px`);
+  setVh();
+  window.addEventListener('resize', setVh);
+  let labelTimer = null;
+  const scheduleTableLabels = () => {
+    clearTimeout(labelTimer);
+    labelTimer = setTimeout(applyResponsiveTableLabels, 80);
+  };
+  const mainEl = document.querySelector('main');
+  if(mainEl) new MutationObserver(scheduleTableLabels).observe(mainEl, { childList: true, subtree: true });
+
+  const savedViewMode = localStorage.getItem('pexuraViewMode');
+  if(savedViewMode === 'mobile') document.body.classList.add('force-mobile');
+  if(savedViewMode === 'pc') document.body.classList.add('force-desktop');
+
+  document.querySelectorAll(".navbtn").forEach(btn => {
+    if(btn.querySelector('.nav-ico')) return;
+    const raw = btn.textContent.trim();
+    const parts = raw.split(/\s+/);
+    const icon = parts.shift() || '';
+    const label = parts.join(' ') || raw;
+    btn.innerHTML = `<span class="nav-ico">${icon}</span><span class="nav-lbl">${label}</span>`;
+    btn.setAttribute('aria-label', label);
+  });
+}
+
+setupMobileShell();
+
 document.querySelectorAll(".navbtn").forEach(b => {
   b.onclick = () => {
     document.querySelectorAll(".navbtn").forEach(x => x.classList.remove("active"));
@@ -2560,6 +2638,10 @@ document.querySelectorAll(".navbtn").forEach(b => {
 
     // mobile FAB
     updateFab(b.dataset.tab);
+    if(isMobileUI()){
+      b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 });
 
@@ -3947,4 +4029,3 @@ function escapeHtml(str){
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[m]));
 }
-
