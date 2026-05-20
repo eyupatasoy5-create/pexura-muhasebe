@@ -384,6 +384,17 @@ body.force-desktop .row { flex-direction: row !important; }
 /* --- Helpers --- */
 .muted { color: var(--text-muted); }
 
+.commission-summary{
+  margin: -4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #fde68a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 /* --- Small tags/badges --- */
 .tag {
   display: inline-block;
@@ -1451,6 +1462,61 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
 
   .urun-stock-summary,
   .urun-row-actions{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Cari panel desktop fix: keep force-desktop grid rules out of this modal */
+#modalCariPanel .modal-content{
+  max-width: min(1100px, calc(100vw - 48px)) !important;
+}
+
+#modalCariPanel .grid{
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 20px !important;
+  align-items: start;
+}
+
+#modalCariPanel .card,
+#modalCariPanel .card:has(table){
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 18px !important;
+  overflow: visible !important;
+}
+
+#modalCariPanel .card h3{
+  line-height: 1.25;
+}
+
+#modalCariPanel input,
+#modalCariPanel select,
+#modalCariPanel textarea{
+  min-width: 0;
+}
+
+#modalCariPanel .row{
+  min-width: 0;
+}
+
+#modalCariPanel .mini-table{
+  display: table !important;
+  min-width: 0 !important;
+  white-space: normal !important;
+}
+
+#modalCariPanel .mini-table th,
+#modalCariPanel .mini-table td{
+  padding: 8px 6px;
+}
+
+@media (max-width: 900px){
+  #modalCariPanel .modal-content{
+    max-width: 100vw !important;
+  }
+
+  #modalCariPanel .grid{
     grid-template-columns: 1fr !important;
   }
 }

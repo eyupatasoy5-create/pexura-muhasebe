@@ -398,6 +398,14 @@
           <select id="kHesap"></select>
           <select id="kTur"><option value="tahsilat">Tahsilat</option><option value="odeme">Ödeme</option></select>
           <input id="kTutar" type="number" placeholder="Tutar"/>
+          <div class="row">
+            <select id="kOdemeTipi">
+              <option value="nakit">Nakit / Havale</option>
+              <option value="kart">Kredi Kartı</option>
+            </select>
+            <input id="kKomisyonOran" type="number" step="0.01" min="0" placeholder="Kesinti / komisyon %"/>
+          </div>
+          <div id="kKomisyonOzet" class="commission-summary hide"></div>
           <input id="kTarih" type="date"/>
           <select id="kCari"></select>
           <input id="kAciklama" placeholder="Açıklama"/>
@@ -657,6 +665,20 @@
         <input type="hidden" id="cpFinansTur" value="tahsilat">
         <label>İşlenecek Tutar</label>
         <input id="cpFinansTutar" type="number" placeholder="0.00">
+        <div class="row">
+          <div>
+            <label>Ödeme Tipi</label>
+            <select id="cpOdemeTipi">
+              <option value="nakit">Nakit / Havale</option>
+              <option value="kart">Kredi Kartı</option>
+            </select>
+          </div>
+          <div>
+            <label>Kesinti / Komisyon %</label>
+            <input id="cpKomisyonOran" type="number" step="0.01" min="0" placeholder="Örn: 3">
+          </div>
+        </div>
+        <div id="cpKomisyonOzet" class="commission-summary hide"></div>
         <div id="cpTahsilatOzet" style="margin:8px 0 10px; padding:10px 12px; border:1px solid #334155; border-radius:10px; background:rgba(15,23,42,.45); font-size:12px; color:#cbd5e1; line-height:1.55;">
           <div>Mevcut Borç: <b id="cpMevcutBorc">0.00 $</b></div>
           <div>Bu İşlem Sonrası Kalan: <b id="cpKalanBorc">0.00 $</b></div>

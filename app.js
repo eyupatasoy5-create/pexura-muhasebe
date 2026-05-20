@@ -2330,9 +2330,72 @@ function renderFaturalar(){
 async function fetchHesaplar(){ const { data } = await supa.from("kasa_hesaplar").select("*"); HESAPLAR=data||[]; }
 async function fetchHareketler(){ const { data }=await supa.from("kasa_hareketler").select("*").order("tarih",{ascending:false}); HAREKETLER=(data||[]).sort(compareByNewest); }
 
+function calcKartKomisyon(tutar, odemeTipi, oran){
+  const brut = toNum(tutar);
+  const pct = toNum(oran);
+  const komisyon = brut > 0 && pct > 0 ? Number((brut * pct / 100).toFixed(2)) : 0;
+  return {
+    odemeTipi: odemeTipi || 'nakit',
+    oran: pct,
+    brut,
+    komisyon,
+    net: Number((brut - komisyon).toFixed(2))
+  };
+}
+
+function renderKomisyonOzet({tutarId, tipId, oranId, boxId, hesapId, turId}){
+  const box = document.getElementById(boxId);
+  if(!box) return;
+  const tur = turId ? document.getElementById(turId)?.value : 'tahsilat';
+  const hesap = HESAPLAR.find(h => String(h.id) === String(document.getElementById(hesapId)?.value));
+  const curr = hesap?.para_birimi || 'USD';
+  const info = calcKartKomisyon(
+    document.getElementById(tutarId)?.value,
+    document.getElementById(tipId)?.value,
+    document.getElementById(oranId)?.value
+  );
+
+  if(tur !== 'tahsilat' || info.brut <= 0 || info.oran <= 0){
+    box.classList.add('hide');
+    box.innerHTML = '';
+    return;
+  }
+
+  box.classList.remove('hide');
+  box.innerHTML = `
+    <div>Brüt tahsilat: <b>${fmt(info.brut, curr)}</b></div>
+    <div>Kesinti/komisyon: <b>${fmt(info.komisyon, curr)}</b> (%${info.oran})</div>
+    <div>Kasaya/Banka hesabına net geçen: <b>${fmt(info.net, curr)}</b></div>
+  `;
+}
+
+async function createKartKomisyonGider({info, tarih, cariId, aciklama, kaynak}){
+  if(!info || info.komisyon <= 0) return null;
+  const cari = CARILER.find(c => String(c.id) === String(cariId));
+  const cariText = cari?.ad ? ` - ${cari.ad}` : '';
+  const base = (aciklama || kaynak || 'Tahsilat').trim();
+  const odemeTipiText = info.odemeTipi === 'kart' ? 'Kredi kartı' : 'Nakit/Havale';
+  const giderAciklama = `${base}${cariText} | ${odemeTipiText} komisyonu %${info.oran} | Brüt ${info.brut} | Net ${info.net}`;
+
+  const { error } = await supa.from("gelir_gider").insert({
+    user_id: USER.id,
+    tarih: tarih || todayStr(),
+    tur: "gider",
+    kategori: info.odemeTipi === 'kart' ? "Kredi Kartı Komisyonu" : "Nakit/Havale Komisyonu",
+    tutar: info.komisyon,
+    aciklama: giderAciklama
+  });
+
+  if(error) throw error;
+  return info;
+}
+
 function resetKasaForm() {
   EDIT_HAREKET_ID = null;
   kTutar.value = ""; kAciklama.value = ""; kTarih.value = todayStr();
+  if(window.kOdemeTipi) kOdemeTipi.value = "nakit";
+  if(window.kKomisyonOran) kKomisyonOran.value = "";
+  renderKomisyonOzet({tutarId:'kTutar', tipId:'kOdemeTipi', oranId:'kKomisyonOran', boxId:'kKomisyonOzet', hesapId:'kHesap', turId:'kTur'});
   const btn = document.getElementById('kEkleBtn');
   btn.textContent = "İşlemi Kaydet";
   btn.classList.remove('warning');
@@ -2353,6 +2416,11 @@ document.getElementById('hEkleBtn').onclick = async ()=>{
 
 document.getElementById('kEkleBtn').onclick = async ()=>{
   if(!isPosNum(kTutar.value)) return showToast("Tutar > 0 olmalı","warning");
+  const komisyonInfo = calcKartKomisyon(
+    kTutar.value,
+    document.getElementById('kOdemeTipi')?.value,
+    document.getElementById('kKomisyonOran')?.value
+  );
 
   const payload = {
     user_id: USER.id,
@@ -2361,7 +2429,9 @@ document.getElementById('kEkleBtn').onclick = async ()=>{
     tur: kTur.value,
     cari_id: kCari.value||null,
     tutar: toNum(kTutar.value),
-    aciklama: kAciklama.value
+    aciklama: komisyonInfo.komisyon > 0 && kTur.value === 'tahsilat'
+      ? `${kAciklama.value || 'Tahsilat'} | ${komisyonInfo.odemeTipi === 'kart' ? 'Kredi kartı' : 'Nakit/Havale'} komisyonu: %${komisyonInfo.oran}, kesinti ${komisyonInfo.komisyon}, net ${komisyonInfo.net}`
+      : kAciklama.value
   };
   let error;
   if(EDIT_HAREKET_ID){
@@ -2370,11 +2440,24 @@ document.getElementById('kEkleBtn').onclick = async ()=>{
   } else {
     const res = await supa.from("kasa_hareketler").insert(payload);
     error = res.error;
+    if(!error && kTur.value === 'tahsilat'){
+      try{
+        await createKartKomisyonGider({
+          info: komisyonInfo,
+          tarih: kTarih.value,
+          cariId: kCari.value,
+          aciklama: kAciklama.value,
+          kaynak: 'Kasa tahsilatı'
+        });
+      }catch(e){
+        error = e;
+      }
+    }
   }
   if(error) return showToast(error.message, "error");
-  resetKasaForm(); await fetchHareketler();
-  renderHareketler(); renderDash();
-  showToast("İşlem kaydedildi.", "success");
+  resetKasaForm(); await fetchHareketler(); await fetchGG();
+  renderHareketler(); renderGG(); renderDash();
+  showToast(komisyonInfo.komisyon > 0 && kTur.value === 'tahsilat' ? "Tahsilat ve komisyon gideri kaydedildi." : "İşlem kaydedildi.", "success");
 };
 
 function renderHesaplar(){
@@ -2652,6 +2735,13 @@ document.querySelectorAll(".navbtn").forEach(b => {
   if(_fT) _fT.value = nowLocalDT();
   if(_kT) _kT.value = todayStr();
 })();
+['kTutar','kOdemeTipi','kKomisyonOran','kHesap','kTur'].forEach(id => {
+  const el = document.getElementById(id);
+  if(!el) return;
+  const refresh = () => renderKomisyonOzet({tutarId:'kTutar', tipId:'kOdemeTipi', oranId:'kKomisyonOran', boxId:'kKomisyonOzet', hesapId:'kHesap', turId:'kTur'});
+  el.addEventListener('input', refresh);
+  el.addEventListener('change', refresh);
+});
 document.getElementById('kKdv').value = "0";
 document.getElementById('uKdv').value = "0";
 
@@ -2684,14 +2774,21 @@ window.openCariPanel = async (id) => {
   document.getElementById('cpFinansTutar').value = "";
   document.getElementById('cpFinansAciklama').value = "";
   setCpFinansTur('tahsilat');
-  const cpTutarInput = document.getElementById('cpFinansTutar');
-  if(cpTutarInput) cpTutarInput.oninput = cpTahsilatOzetGuncelle;
+  const refreshCpFinance = () => {
+    cpTahsilatOzetGuncelle();
+    renderKomisyonOzet({tutarId:'cpFinansTutar', tipId:'cpOdemeTipi', oranId:'cpKomisyonOran', boxId:'cpKomisyonOzet', hesapId:'cpKasaSelect', turId:'cpFinansTur'});
+  };
+  ['cpFinansTutar','cpOdemeTipi','cpKomisyonOran','cpKasaSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.oninput = refreshCpFinance;
+    if(el) el.onchange = refreshCpFinance;
+  });
 
   CP_SEPET = [];
   renderCpSepet();
 
   await cpVerileriGuncelle();
-  cpTahsilatOzetGuncelle();
+  refreshCpFinance();
   await cpHareketleriGetir();
 };
 
@@ -2870,6 +2967,7 @@ window.setCpFinansTur = (tur) => {
     document.getElementById('btnTahsilat').style.opacity = '0.5';
     document.getElementById('btnOdeme').style.opacity = '1';
   }
+  renderKomisyonOzet({tutarId:'cpFinansTutar', tipId:'cpOdemeTipi', oranId:'cpKomisyonOran', boxId:'cpKomisyonOzet', hesapId:'cpKasaSelect', turId:'cpFinansTur'});
   cpTahsilatOzetGuncelle();
 };
 
@@ -2879,13 +2977,21 @@ window.cpFinansIsle = async () => {
   const tutar = toNum(document.getElementById('cpFinansTutar').value);
   const kasaId = document.getElementById('cpKasaSelect').value;
   const aciklama = document.getElementById('cpFinansAciklama').value;
+  const komisyonInfo = calcKartKomisyon(
+    tutar,
+    document.getElementById('cpOdemeTipi')?.value,
+    document.getElementById('cpKomisyonOran')?.value
+  );
   if(tutar <= 0) return showToast("Geçerli bir tutar girin", "warning");
 
   const cari = CARILER.find(c => c.id == ACTIVE_CARI_ID);
   const hesap = HESAPLAR.find(h => h.id == kasaId);
   const mevcutBakiye = hesaplaBakiye(ACTIVE_CARI_ID);
   const yeniBakiye = tur === 'tahsilat' ? mevcutBakiye - tutar : mevcutBakiye + tutar;
-  const kayitAciklama = (aciklama || '').trim() || (tur === 'tahsilat' ? 'Tahsilat' : 'Odeme');
+  const kayitAciklamaBase = (aciklama || '').trim() || (tur === 'tahsilat' ? 'Tahsilat' : 'Odeme');
+  const kayitAciklama = komisyonInfo.komisyon > 0 && tur === 'tahsilat'
+    ? `${kayitAciklamaBase} | ${komisyonInfo.odemeTipi === 'kart' ? 'Kredi kartı' : 'Nakit/Havale'} komisyonu: %${komisyonInfo.oran}, kesinti ${komisyonInfo.komisyon}, net ${komisyonInfo.net}`
+    : kayitAciklamaBase;
 
   const { error } = await supa.from('kasa_hareketler').insert({
     user_id: USER.id,
@@ -2898,9 +3004,31 @@ window.cpFinansIsle = async () => {
   });
   if(error) return showToast(error.message, "error");
 
-  showToast(`İşlem kaydedildi. Kalan borç: ${fmt(yeniBakiye, hesap?.para_birimi || 'USD')}`, "success");
+  if(tur === 'tahsilat'){
+    try{
+      await createKartKomisyonGider({
+        info: komisyonInfo,
+        tarih: todayStr(),
+        cariId: ACTIVE_CARI_ID,
+        aciklama: kayitAciklamaBase,
+        kaynak: 'Cari panel tahsilatı'
+      });
+    }catch(e){
+      return showToast(e.message || "Komisyon gideri kaydedilemedi", "error");
+    }
+  }
+
+  showToast(
+    komisyonInfo.komisyon > 0 && tur === 'tahsilat'
+      ? `Tahsilat kaydedildi, komisyon gider yazıldı. Kalan borç: ${fmt(yeniBakiye, hesap?.para_birimi || 'USD')}`
+      : `İşlem kaydedildi. Kalan borç: ${fmt(yeniBakiye, hesap?.para_birimi || 'USD')}`,
+    "success"
+  );
   document.getElementById('cpFinansTutar').value = "";
   document.getElementById('cpFinansAciklama').value = "";
+  if(document.getElementById('cpOdemeTipi')) document.getElementById('cpOdemeTipi').value = "nakit";
+  if(document.getElementById('cpKomisyonOran')) document.getElementById('cpKomisyonOran').value = "";
+  renderKomisyonOzet({tutarId:'cpFinansTutar', tipId:'cpOdemeTipi', oranId:'cpKomisyonOran', boxId:'cpKomisyonOzet', hesapId:'cpKasaSelect', turId:'cpFinansTur'});
   await fetchAll(); renderAll();
   await cpVerileriGuncelle();
   cpTahsilatOzetGuncelle();
@@ -3989,6 +4117,9 @@ window.addTahsilatFromDetay = async () => {
     const tutar = toNum(tutarStr);
     if(!(tutar > 0)) return showToast("Geçerli bir tutar girin", "warning");
     if(tutar > kalan && !confirm("Tutar kalan borçtan büyük. Devam edilsin mi?")) return;
+    const komisyonOranStr = prompt("Kesinti/komisyon oranı (%)\nNakit, havale veya kart için komisyon yoksa boş bırakın ya da 0 yazın:", "");
+    if(komisyonOranStr === null) return;
+    const komisyonInfo = calcKartKomisyon(tutar, 'nakit', komisyonOranStr);
 
     // 1) kasa hareketi
     const { error: e1 } = await supa.from('kasa_hareketler').insert({
@@ -3998,9 +4129,19 @@ window.addTahsilatFromDetay = async () => {
       tur: 'tahsilat',
       tutar,
       tarih: nowLocalDTWithSeconds(),
-      aciklama: `Fatura tahsilatı: ${f.numara || f.id}`
+      aciklama: komisyonInfo.komisyon > 0
+        ? `Fatura tahsilatı: ${f.numara || f.id} | Komisyon: %${komisyonInfo.oran}, kesinti ${komisyonInfo.komisyon}, net ${komisyonInfo.net}`
+        : `Fatura tahsilatı: ${f.numara || f.id}`
     });
     if(e1) throw e1;
+
+    await createKartKomisyonGider({
+      info: komisyonInfo,
+      tarih: todayStr(),
+      cariId: f.cari_id,
+      aciklama: `Fatura tahsilatı: ${f.numara || f.id}`,
+      kaynak: 'Fatura tahsilatı'
+    });
 
     // 2) faturada odenen güncelle
     const yeniOdenen = odenen + tutar;
