@@ -299,15 +299,87 @@ async function login(){
   await loadSession();
 }
 async function logout(){ await supa.auth.signOut(); location.reload(); }
+async function forgotPassword(){
+  showToast("Mail sıfırlama kapatıldı. Giriş yapamıyorsanız şifre Supabase panelinden yönetici tarafından değiştirilmelidir.", "warning");
+}
+const SECURITY_QUESTIONS = [
+  "Doğduğun şehir?",
+  "İlk okul öğretmeninin adı?",
+  "İlk evcil hayvanının adı?",
+  "Çocukluk lakabın?"
+];
+let ACTIVE_SECURITY_QUESTION_INDEX = 0;
+
+function normalizeSecurityAnswer(v){
+  return String(v || '').trim().toLocaleLowerCase('tr-TR');
+}
+async function hashSecurityAnswer(v){
+  const data = new TextEncoder().encode(normalizeSecurityAnswer(v));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function getSecurityAnswers(){
+  return USER?.user_metadata?.security_answers || [];
+}
+function hasSecurityAnswers(){
+  const answers = getSecurityAnswers();
+  return Array.isArray(answers) && SECURITY_QUESTIONS.every((_, i) => !!answers[i]);
+}
+function toggleSecuritySetup(show){
+  const box = document.getElementById('securitySetupBox');
+  if(!box) return;
+  box.classList.toggle('hide', !show);
+  if(show) document.getElementById('secAnswer0')?.focus();
+  else SECURITY_QUESTIONS.forEach((_, i) => { const el = document.getElementById(`secAnswer${i}`); if(el) el.value = ''; });
+}
+async function saveSecurityAnswers(){
+  if(!USER) return showToast("Önce giriş yapın.", "warning");
+  const rawAnswers = SECURITY_QUESTIONS.map((_, i) => document.getElementById(`secAnswer${i}`)?.value || '');
+  if(rawAnswers.some(a => normalizeSecurityAnswer(a).length < 2)){
+    return showToast("Tüm gizli soru cevaplarını doldurun.", "warning");
+  }
+
+  const security_answers = [];
+  for(const answer of rawAnswers){
+    security_answers.push(await hashSecurityAnswer(answer));
+  }
+
+  const { data, error } = await supa.auth.updateUser({
+    data: { ...(USER.user_metadata || {}), security_answers }
+  });
+  if(error) return showToast(error.message, "error");
+
+  USER = data.user;
+  toggleSecuritySetup(false);
+  showToast("Gizli soru cevapları kaydedildi.", "success");
+}
+function startPasswordChange(){
+  if(!USER) return showToast("Önce giriş yapın.", "warning");
+  if(!hasSecurityAnswers()){
+    showToast("Önce 4 gizli soru cevabını kaydedin.", "warning");
+    toggleSecuritySetup(true);
+    return;
+  }
+
+  ACTIVE_SECURITY_QUESTION_INDEX = Math.floor(Math.random() * SECURITY_QUESTIONS.length);
+  const q = document.getElementById('changeSecurityQuestion');
+  const a = document.getElementById('changeSecurityAnswer');
+  if(q) q.textContent = SECURITY_QUESTIONS[ACTIVE_SECURITY_QUESTION_INDEX];
+  if(a) a.value = '';
+  toggleSecuritySetup(false);
+  toggleChangePassword(true);
+}
 function toggleChangePassword(show){
   const box = document.getElementById('changePassBox');
   if(!box) return;
   box.classList.toggle('hide', !show);
   if(show){
-    document.getElementById('newAuthPass')?.focus();
+    document.getElementById('changeSecurityAnswer')?.focus();
   } else {
+    const answer = document.getElementById('changeSecurityAnswer');
     const pass1 = document.getElementById('newAuthPass');
     const pass2 = document.getElementById('newAuthPass2');
+    if(answer) answer.value = '';
     if(pass1) pass1.value = '';
     if(pass2) pass2.value = '';
   }
@@ -317,7 +389,13 @@ async function changePassword(){
 
   const pass1 = document.getElementById('newAuthPass')?.value.trim() || '';
   const pass2 = document.getElementById('newAuthPass2')?.value.trim() || '';
+  const answer = document.getElementById('changeSecurityAnswer')?.value || '';
+  const answers = getSecurityAnswers();
 
+  if(!hasSecurityAnswers()) return showToast("Gizli sorular ayarlanmadan şifre değiştirilemez.", "warning");
+  if(await hashSecurityAnswer(answer) !== answers[ACTIVE_SECURITY_QUESTION_INDEX]){
+    return showToast("Gizli soru cevabı yanlış.", "error");
+  }
   if(pass1.length < 6) return showToast("Yeni şifre en az 6 karakter olmalı.", "warning");
   if(pass1 !== pass2) return showToast("Şifreler aynı değil.", "warning");
 
@@ -364,7 +442,11 @@ function applyRolePermissions(){
 document.getElementById('btnRegister').onclick=register;
 document.getElementById('btnLogin').onclick=login;
 document.getElementById('btnLogout').onclick=logout;
-document.getElementById('btnShowChangePass')?.addEventListener('click', ()=> toggleChangePassword(true));
+document.getElementById('btnForgotPass')?.addEventListener('click', forgotPassword);
+document.getElementById('btnShowChangePass')?.addEventListener('click', startPasswordChange);
+document.getElementById('btnSecuritySetup')?.addEventListener('click', ()=>{ toggleChangePassword(false); toggleSecuritySetup(true); });
+document.getElementById('btnSaveSecurityAnswers')?.addEventListener('click', saveSecurityAnswers);
+document.getElementById('btnCancelSecuritySetup')?.addEventListener('click', ()=> toggleSecuritySetup(false));
 document.getElementById('btnCancelChangePass')?.addEventListener('click', ()=> toggleChangePassword(false));
 document.getElementById('btnChangePass')?.addEventListener('click', changePassword);
 

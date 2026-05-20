@@ -142,6 +142,30 @@ header h1 {
   padding-top: 10px;
 }
 
+.security-question-row,
+.security-setup-box label{
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(180px, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  color: var(--text-muted);
+}
+
+.security-question-row strong,
+.security-setup-title{
+  color: var(--text);
+}
+
+.security-setup-title{
+  width: 100%;
+  font-weight: 700;
+}
+
+.security-setup-box{
+  justify-content: stretch;
+}
+
 .wrap { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 64px); }
 
 nav {
@@ -482,6 +506,11 @@ body.force-desktop .row { flex-direction: row !important; }
   .authbar input,
   .authbar button{
     width: 100%;
+  }
+  .security-question-row,
+  .security-setup-box label{
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
   /* Wrap becomes single column */

@@ -49,16 +49,31 @@
     <input id="authPass" type="password" placeholder="Şifre"/>
     <button class="primary" id="btnRegister">Kayıt Ol</button>
     <button id="btnLogin">Giriş</button>
+    <button id="btnForgotPass" type="button">Şifremi Unuttum</button>
   </div>
   <div id="authLoggedIn" class="hide">
     <span id="authUserMail"></span>
     <button id="btnShowChangePass" type="button">Şifre Değiştir</button>
+    <button id="btnSecuritySetup" type="button">Gizli Soruları Ayarla</button>
     <button id="btnLogout">Çıkış</button>
     <div id="changePassBox" class="change-pass-box hide">
+      <div class="security-question-row">
+        <strong id="changeSecurityQuestion">Gizli soru</strong>
+        <input id="changeSecurityAnswer" placeholder="Gizli soru cevabı"/>
+      </div>
       <input id="newAuthPass" type="password" placeholder="Yeni şifre"/>
       <input id="newAuthPass2" type="password" placeholder="Yeni şifre tekrar"/>
       <button class="primary" id="btnChangePass" type="button">Kaydet</button>
       <button id="btnCancelChangePass" type="button">Vazgeç</button>
+    </div>
+    <div id="securitySetupBox" class="change-pass-box security-setup-box hide">
+      <div class="security-setup-title">4 gizli sorunun cevaplarını belirleyin</div>
+      <label>Doğduğun şehir?<input id="secAnswer0" placeholder="Cevap"/></label>
+      <label>İlk okul öğretmeninin adı?<input id="secAnswer1" placeholder="Cevap"/></label>
+      <label>İlk evcil hayvanının adı?<input id="secAnswer2" placeholder="Cevap"/></label>
+      <label>Çocukluk lakabın?<input id="secAnswer3" placeholder="Cevap"/></label>
+      <button class="primary" id="btnSaveSecurityAnswers" type="button">Soruları Kaydet</button>
+      <button id="btnCancelSecuritySetup" type="button">Vazgeç</button>
     </div>
   </div>
 </div>
