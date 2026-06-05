@@ -13,7 +13,7 @@ let EDIT_FATURA_ID = null;
 let CURRENT_IMG_URL = null;
 let IS_IMG_REMOVED = false;
 
-let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[];
+let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[], STOK_LOGS=[], SYSTEM_LOGS=[];
 let FATURA_SATIRLAR=[];
 
 // Ürün listesi arama/sıralama
@@ -48,18 +48,69 @@ const nowLocalDTWithSeconds = ()=>{
   d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
   return d.toISOString().slice(0,19);
 };
+function parseAppDate(value){
+  if(value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  const raw = String(value || '').trim();
+  if(!raw) return null;
+
+  if(/[zZ]$|[+-]\d{2}:\d{2}$/.test(raw)){
+    const d = new Date(raw);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  const tr = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if(tr){
+    const d = new Date(
+      Number(tr[3]),
+      Number(tr[2]) - 1,
+      Number(tr[1]),
+      Number(tr[4] || 0),
+      Number(tr[5] || 0),
+      Number(tr[6] || 0)
+    );
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  const isoLocal = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(isoLocal){
+    const d = new Date(
+      Number(isoLocal[1]),
+      Number(isoLocal[2]) - 1,
+      Number(isoLocal[3]),
+      Number(isoLocal[4] || 0),
+      Number(isoLocal[5] || 0),
+      Number(isoLocal[6] || 0)
+    );
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+
+  const d = new Date(raw);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function appDateMs(value){
+  const d = parseAppDate(value);
+  return d ? d.getTime() : NaN;
+}
+
+function filterStartMs(value){
+  const ms = appDateMs(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function filterEndMs(value){
+  const d = parseAppDate(value);
+  if(!d) return null;
+  const raw = String(value || '');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) d.setHours(23,59,59,999);
+  else d.setSeconds(59,999);
+  return d.getTime();
+}
+
 const getSortTimestamp = (v, fallback = '')=>{
-  const val = String(v || '').trim();
-  const fallbackVal = String(fallback || '').trim();
-  const parseMs = (input)=>{
-    if(!input) return NaN;
-    const normalized = input.replace(' ', 'T');
-    const d = new Date(normalized);
-    return Number.isFinite(d.getTime()) ? d.getTime() : NaN;
-  };
-  const primary = parseMs(val);
+  const primary = appDateMs(v);
   if(Number.isFinite(primary)) return primary;
-  const secondary = parseMs(fallbackVal);
+  const secondary = appDateMs(fallback);
   if(Number.isFinite(secondary)) return secondary;
   return 0;
 };
@@ -72,8 +123,10 @@ const compareByNewest = (a, b)=>{
 };
 
 function ymd(dateStrOrDate){
-  const d = (dateStrOrDate instanceof Date) ? dateStrOrDate : new Date(dateStrOrDate);
-  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  const d = parseAppDate(dateStrOrDate);
+  if(!d) return String(dateStrOrDate || '').slice(0,10);
+  const pad = (n)=> String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
 function getActiveCariler(){
@@ -93,8 +146,8 @@ function pushRecentCariId(id){
 
 // Tarih formatı: GG.AA.YYYY SS:DD (PDF ve listelerde)
 function formatDateTR(dt){
-  const d = new Date(dt);
-  if(!dt || isNaN(d.getTime())) return String(dt||'');
+  const d = parseAppDate(dt);
+  if(!d) return String(dt||'');
   const pad = (n)=> String(n).padStart(2,'0');
   return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -104,10 +157,8 @@ function formatDateTR(dt){
 const formatTRDateTime = (v)=>{
   if(!v) return "";
   try{
-    // v: "YYYY-MM-DD" veya "YYYY-MM-DDTHH:MM" gibi
-    const s = String(v).trim().replace(" ", "T");
-    const d = new Date(s);
-    if(!Number.isFinite(d.getTime())) return String(v);
+    const d = parseAppDate(v);
+    if(!d) return String(v);
     const pad=(n)=> String(n).padStart(2,'0');
     const dd=pad(d.getDate()), mm=pad(d.getMonth()+1), yy=d.getFullYear();
     const hh=pad(d.getHours()), mi=pad(d.getMinutes());
@@ -116,6 +167,14 @@ const formatTRDateTime = (v)=>{
     return String(v);
   }
 };
+
+function toDateTimeInputValue(v){
+  if(!v) return nowLocalDT();
+  const d = parseAppDate(v);
+  if(!d) return String(v).trim().replace(" ", "T").slice(0,16);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
+}
 
 
 function showToast(message, type = 'success') {
@@ -422,7 +481,7 @@ async function loadSession(){
   }
 }
 function applyRolePermissions(){
-  const adminTabs = ['dash', 'cariler', 'faturalar', 'kasa', 'gelirgider','gecmis'];
+  const adminTabs = ['dash', 'cariler', 'faturalar', 'kasa', 'gelirgider','gecmis','notlar'];
   if(USER_ROLE === 'personel'){
     adminTabs.forEach(id => {
       const btn = document.querySelector(`button[data-tab="${id}"]`);
@@ -463,11 +522,14 @@ async function fetchAll(){
       fetchHesaplar(),
       fetchHareketler(),
       fetchGG(),
-      fetchFaturalar()
+      fetchFaturalar(),
+      fetchStokLoglari(),
+      fetchSystemLogs()
     ]);
     await fetchTumKalemler();
   }
   fillSelects();
+  generateMissingZReports();
   renderAll();
   runStartupAlerts(); // madde 12
 }
@@ -475,6 +537,28 @@ async function fetchAll(){
 async function fetchTumKalemler() {
   const { data } = await supa.from('fatura_kalemler').select('*');
   TUM_KALEMLER = data || [];
+}
+
+async function fetchStokLoglari(){
+  try{
+    const { data, error } = await supa.from('stok_hareketleri').select('*').order('tarih',{ascending:false});
+    if(error) throw error;
+    STOK_LOGS = data || [];
+  }catch(e){
+    STOK_LOGS = [];
+    console.warn('stok_hareketleri okunamadi:', e?.message || e);
+  }
+}
+
+async function fetchSystemLogs(){
+  try{
+    const { data, error } = await supa.from('system_logs').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    SYSTEM_LOGS = data || [];
+  }catch(e){
+    SYSTEM_LOGS = [];
+    console.warn('system_logs okunamadi:', e?.message || e);
+  }
 }
 
 /* =========================================================
@@ -496,7 +580,7 @@ function calcAgingBuckets(curr='USD'){
 
     // yaşlandırma: satış faturalarını tarihe göre sırala, ödeme FIFO dağıt (basit)
     let kalanOdeme = alacakTop;
-    const sorted = satislar.slice().sort((a,b)=>new Date(a.tarih)-new Date(b.tarih));
+    const sorted = satislar.slice().sort((a,b)=>appDateMs(a.tarih)-appDateMs(b.tarih));
     for(const f of sorted){
       let tut = toNum(f.genel_toplam);
       if(kalanOdeme>0){
@@ -506,7 +590,7 @@ function calcAgingBuckets(curr='USD'){
       }
       if(tut<=0) continue;
 
-      const gun = Math.floor((Date.now() - new Date(f.tarih).getTime())/86400000);
+      const gun = Math.floor((Date.now() - appDateMs(f.tarih))/86400000);
       if(gun<=30) buckets.b0_30 += tut;
       else if(gun<=60) buckets.b31_60 += tut;
       else buckets.b61p += tut;
@@ -514,6 +598,62 @@ function calcAgingBuckets(curr='USD'){
   });
 
   return buckets;
+}
+
+function getCariOverdueInfo(c, curr = null, limitDays = 15){
+  if(!c) return { overdue:false, days:0, amount:0, currency:curr || '' };
+  const currencies = curr ? [curr] : Array.from(new Set([
+    ...FATURALAR.filter(f => f.cari_id == c.id).map(f => f.para_birimi || 'TL'),
+    ...HESAPLAR.map(h => h.para_birimi || 'TL'),
+    'TL'
+  ]));
+  const hesapPB = new Map((HESAPLAR || []).map(h => [String(h.id), h.para_birimi || 'TL']));
+  let worst = { overdue:false, days:0, amount:0, currency:curr || '' };
+
+  currencies.forEach(pb => {
+    const satislar = FATURALAR
+      .filter(f => f.cari_id == c.id && normalizeTip(f.tip) === 'satis' && (f.para_birimi || 'TL') === pb)
+      .slice()
+      .sort((a,b)=> appDateMs(a.tarih) - appDateMs(b.tarih));
+    if(!satislar.length && pb !== 'TL') return;
+
+    const iadeTop = FATURALAR
+      .filter(f => f.cari_id == c.id && normalizeTip(f.tip) === 'iade' && (f.para_birimi || 'TL') === pb)
+      .reduce((sum,f)=> sum + toNum(f.genel_toplam), 0);
+    const tahsilatTop = HAREKETLER
+      .filter(h => h.cari_id == c.id && h.tur === 'tahsilat' && (hesapPB.get(String(h.hesap_id)) || h.para_birimi || 'TL') === pb)
+      .reduce((sum,h)=> sum + toNum(h.tutar), 0);
+    const acilisAlacak = pb === 'TL' ? toNum(c.acilis_alacak) : 0;
+    const acilisBorc = pb === 'TL' ? toNum(c.acilis_borc) : 0;
+    let kalanOdeme = tahsilatTop + iadeTop + acilisAlacak;
+
+    if(acilisBorc > 0){
+      const acilisTarih = c.created_at || c.tarih || new Date(0).toISOString();
+      satislar.unshift({ tarih: acilisTarih, genel_toplam: acilisBorc, para_birimi: pb, tip: 'satis' });
+    }
+
+    for(const f of satislar){
+      let kalan = toNum(f.genel_toplam);
+      if(kalanOdeme > 0){
+        const used = Math.min(kalanOdeme, kalan);
+        kalan -= used;
+        kalanOdeme -= used;
+      }
+      if(kalan <= 0) continue;
+      const days = Math.floor((Date.now() - appDateMs(f.tarih)) / 86400000);
+      if(days > limitDays && days > worst.days){
+        worst = { overdue:true, days, amount:kalan, currency:pb };
+      }
+    }
+  });
+
+  return worst;
+}
+
+function overdueStarHtml(c, curr = null){
+  const info = getCariOverdueInfo(c, curr, 15);
+  if(!info.overdue) return '';
+  return `<span class="overdue-star" title="15 gunden eski odenmemis borc: ${fmt(info.amount, info.currency)} (${info.days} gun)">★</span>`;
 }
 
 // Dashboard: Satış & Kâr işlem listesi (Fatura Bazlı) - compact + infinite scroll
@@ -540,7 +680,7 @@ function renderDashSatisKarListesi(curr='USD'){
   const satisFaturalar = (FATURALAR||[])
     .filter(f => normalizeTip(f.tip)==='satis' && (f.para_birimi||'USD') === curr)
     .slice()
-    .sort((a,b)=> new Date(b.tarih) - new Date(a.tarih));
+    .sort((a,b)=> appDateMs(b.tarih) - appDateMs(a.tarih));
 
   // Toplamları tüm kayıtlar üzerinden hesapla (liste kaç satır yüklense de aynı kalsın)
   let topSatis = 0;
@@ -684,7 +824,7 @@ function renderDash(){
     })),
     ...GG.map(g => ({tarih: g.tarih, tur: g.tur, tutar: g.tutar, pb: 'USD'}))
   ];
-  combinedMoves.sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
+  combinedMoves.sort((a,b) => appDateMs(b.tarih) - appDateMs(a.tarih));
   const sonHareketler = document.getElementById('dashSonHareketler');
   sonHareketler.innerHTML = "";
   combinedMoves.slice(0, 5).forEach(m => {
@@ -697,7 +837,7 @@ function renderDash(){
     dashOdemeler.innerHTML="";
     HAREKETLER
       .filter(h => h.tur==='tahsilat')
-      .sort((a,b) => new Date(b.tarih) - new Date(a.tarih))
+      .sort((a,b) => appDateMs(b.tarih) - appDateMs(a.tarih))
       .slice(0,10)
       .forEach(h=>{
         const cari = CARILER.find(c=>c.id==h.cari_id);
@@ -777,7 +917,7 @@ function renderDash(){
     tList.innerHTML = topBorclu.length
       ? topBorclu.map(x=> {
           const cari = (CARILER||[]).find(c=>c.id==x.id) || {};
-          return `<tr><td data-label="Cari">${x.ad || '-'}</td><td data-label="Bakiye" style="text-align:right; font-weight:700; color:#f87171;">${fmt(x.bakiye, curr)}</td><td data-label="Telefon">${cari.tel || '-'}</td></tr>`;
+          return `<tr><td data-label="Cari">${overdueStarHtml(cari, curr)} ${x.ad || '-'}</td><td data-label="Bakiye" style="text-align:right; font-weight:700; color:#f87171;">${fmt(x.bakiye, curr)}</td><td data-label="Telefon">${cari.tel || '-'}</td></tr>`;
         }).join('')
       : `<tr><td colspan="3" class="muted">Borçlu cari bulunamadı.</td></tr>`;
   }
@@ -788,7 +928,7 @@ function renderDash(){
     dashSonSatislar.innerHTML="";
     FATURALAR
       .filter(f => normalizeTip(f.tip)==='satis')
-      .sort((a,b) => new Date(b.tarih) - new Date(a.tarih))
+      .sort((a,b) => appDateMs(b.tarih) - appDateMs(a.tarih))
       .slice(0,10)
       .forEach(f=>{
         const cari = CARILER.find(c=>c.id==f.cari_id);
@@ -810,10 +950,13 @@ function renderDash(){
     if(e1) e1.textContent = fmt(ag.b31_60, curr);
     if(e2) e2.textContent = fmt(ag.b61p, curr);
 
-    if(ag.b61p>0){
+    if(false && ag.b61p>0){
       showToast(`60+ gün gecikmiş toplam borç: ${fmt(ag.b61p,curr)}`, "warning");
     }
   }
+
+  renderCalculationAudit();
+  renderLatestZReport();
 }
 
 const dSel = document.getElementById('dashCurrencySelect');
@@ -824,13 +967,17 @@ if(dSel) dSel.onchange = renderDash;
 ========================================================= */
 async function logAction(tableName, actionType, recordId, oldData = null) {
   if(!USER) return;
-  await supa.from('system_logs').insert({
-    user_id: USER.id,
-    table_name: tableName,
-    action_type: actionType,
-    record_id: recordId,
-    old_data: oldData
-  });
+  try{
+    await supa.from('system_logs').insert({
+      user_id: USER.id,
+      table_name: tableName,
+      action_type: actionType,
+      record_id: recordId,
+      old_data: oldData
+    });
+  }catch(e){
+    console.warn('system_logs yazilamadi:', e?.message || e);
+  }
 }
 
 function trFix(text) {
@@ -1515,7 +1662,7 @@ function renderCariler(){
     const tr=document.createElement("tr");
     tr.innerHTML=`
       <td data-label="Müşteri" onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
-        <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${c.ad}</span><br>
+        <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${overdueStarHtml(c)} ${c.ad}</span><br>
         <small class="muted">${c.tel||'-'}</small>${isMobile?`<div class="mobile-bakiye"><span class="muted">Bakiye:</span> ${bakiyeHtmlForCari(c)}</div>`:""}
       </td>
       <td data-label="Bakiye">${bakiyeHtmlForCari(c)}</td>
@@ -2311,8 +2458,8 @@ function renderFaturalar(){
 
   if(filters.cari) list = list.filter(f=>f.cari_id==filters.cari);
   if(filters.tip)  list = list.filter(f=>normalizeTip(f.tip)==filters.tip);
-  if(filters.start) list = list.filter(f=>new Date(f.tarih)>=new Date(filters.start));
-  if(filters.end)   list = list.filter(f=>new Date(f.tarih)<=new Date(filters.end));
+  if(filters.start) list = list.filter(f=>appDateMs(f.tarih)>=filterStartMs(filters.start));
+  if(filters.end)   list = list.filter(f=>appDateMs(f.tarih)<=filterEndMs(filters.end));
   if(filters.q){
     list = list.filter(f=>{
       const cariAd = f.cariler?.ad || "";
@@ -2461,7 +2608,7 @@ async function createKartKomisyonGider({info, tarih, cariId, aciklama, kaynak}){
 
   const { error } = await supa.from("gelir_gider").insert({
     user_id: USER.id,
-    tarih: tarih || todayStr(),
+    tarih: tarih || nowLocalDTWithSeconds(),
     tur: "gider",
     kategori: info.odemeTipi === 'kart' ? "Kredi Kartı Komisyonu" : "Nakit/Havale Komisyonu",
     tutar: info.komisyon,
@@ -2474,7 +2621,7 @@ async function createKartKomisyonGider({info, tarih, cariId, aciklama, kaynak}){
 
 function resetKasaForm() {
   EDIT_HAREKET_ID = null;
-  kTutar.value = ""; kAciklama.value = ""; kTarih.value = todayStr();
+  kTutar.value = ""; kAciklama.value = ""; kTarih.value = nowLocalDT();
   if(window.kOdemeTipi) kOdemeTipi.value = "nakit";
   if(window.kKomisyonOran) kKomisyonOran.value = "0";
   renderKomisyonOzet({tutarId:'kTutar', tipId:'kOdemeTipi', oranId:'kKomisyonOran', boxId:'kKomisyonOzet', hesapId:'kHesap', turId:'kTur'});
@@ -2507,7 +2654,7 @@ document.getElementById('kEkleBtn').onclick = async ()=>{
   const payload = {
     user_id: USER.id,
     hesap_id: kHesap.value,
-    tarih: kTarih.value,
+    tarih: kTarih.value || nowLocalDTWithSeconds(),
     tur: kTur.value,
     cari_id: kCari.value||null,
     tutar: toNum(kTutar.value),
@@ -2526,7 +2673,7 @@ document.getElementById('kEkleBtn').onclick = async ()=>{
       try{
         await createKartKomisyonGider({
           info: komisyonInfo,
-          tarih: kTarih.value,
+          tarih: kTarih.value || nowLocalDTWithSeconds(),
           cariId: kCari.value,
           aciklama: kAciklama.value,
           kaynak: 'Kasa tahsilatı'
@@ -2551,11 +2698,28 @@ function renderHesaplar(){
 
 function renderHareketler(){
   hareketListe.innerHTML="";
-  HAREKETLER.forEach(h=>{
+  const q = (document.getElementById('hareketSearch')?.value || '').toLocaleLowerCase('tr').trim();
+  const start = document.getElementById('hareketStart')?.value;
+  const end = document.getElementById('hareketEnd')?.value;
+  const startMs = filterStartMs(start);
+  const endMs = filterEndMs(end);
+  const filtered = (HAREKETLER || []).filter(h => {
+    const hMs = appDateMs(h.tarih || h.created_at);
+    if(startMs && Number.isFinite(hMs) && hMs < startMs) return false;
+    if(endMs && Number.isFinite(hMs) && hMs > endMs) return false;
+    if(!q) return true;
+    const hesap = HESAPLAR.find(x=>x.id==h.hesap_id);
+    const cari = h.cari_id ? CARILER.find(c=>c.id==h.cari_id) : null;
+    const haystack = `${h.tur || ''} ${h.tutar || ''} ${h.aciklama || ''} ${hesap?.ad || ''} ${cari?.ad || ''} ${formatTRDateTime(h.tarih)}`.toLocaleLowerCase('tr');
+    return haystack.includes(q);
+  }).sort(compareByNewest);
+  filtered.forEach(h=>{
+    const cari = h.cari_id ? CARILER.find(c => String(c.id) === String(h.cari_id)) : null;
     const tr = document.createElement("tr");
     tr.innerHTML=`
       <td data-label="Tarih">${formatTRDateTime(h.tarih)}</td>
       <td data-label="Tür"><span class="tag">${h.tur}</span></td>
+      <td data-label="Ad Soyad">${cari?.ad || '-'}</td>
       <td data-label="Tutar">${fmt(h.tutar, HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi||'USD')}</td>
       <td data-label="Açıklama">${h.aciklama || ''}</td>
       <td data-label="İşlem">
@@ -2579,7 +2743,7 @@ function renderHareketler(){
       const h = HAREKETLER.find(x => x.id == btn.dataset.edit);
       if(!h) return;
       kHesap.value = h.hesap_id; kTur.value = h.tur; kTutar.value = h.tutar;
-      kTarih.value = h.tarih; kAciklama.value = h.aciklama;
+      kTarih.value = toDateTimeInputValue(h.tarih); kAciklama.value = h.aciklama;
       if(h.cari_id) kCari.value = h.cari_id;
       EDIT_HAREKET_ID = h.id;
       const saveBtn = document.getElementById('kEkleBtn');
@@ -2591,18 +2755,26 @@ function renderHareketler(){
   });
 }
 
+window.clearHareketFilters = () => {
+  ['hareketSearch','hareketStart','hareketEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  renderHareketler();
+};
+
 /* =========================================================
    GELİR GİDER
 ========================================================= */
 async function fetchGG(){ const { data }=await supa.from("gelir_gider").select("*").order("tarih",{ascending:false}); GG=data||[]; }
 
-function resetGGForm() { EDIT_GG_ID = null; ggKat.value=""; ggTutar.value=""; ggAc.value=""; const btn=document.getElementById('ggEkleBtn'); btn.textContent = "Ekle"; btn.classList.remove('warning'); }
+function resetGGForm() { EDIT_GG_ID = null; ggKat.value=""; ggTutar.value=""; ggAc.value=""; ggTarih.value = nowLocalDT(); const btn=document.getElementById('ggEkleBtn'); btn.textContent = "Ekle"; btn.classList.remove('warning'); }
 
 document.getElementById('ggEkleBtn').onclick = async ()=>{
   if(!ggKat.value) return showToast("Kategori zorunlu","warning");
   if(!isPosNum(ggTutar.value)) return showToast("Tutar > 0 olmalı","warning");
 
-  const payload = {user_id: USER.id, tarih: ggTarih.value, tur: ggTur.value, kategori: ggKat.value, tutar: toNum(ggTutar.value), aciklama: ggAc.value};
+  const payload = {user_id: USER.id, tarih: ggTarih.value || nowLocalDTWithSeconds(), tur: ggTur.value, kategori: ggKat.value, tutar: toNum(ggTutar.value), aciklama: ggAc.value};
   let error;
   if(EDIT_GG_ID){
     const res = await supa.from("gelir_gider").update(payload).eq('id', EDIT_GG_ID);
@@ -2618,7 +2790,32 @@ document.getElementById('ggEkleBtn').onclick = async ()=>{
 
 function renderGG(){
   ggListe.innerHTML="";
-  GG.forEach(g=>{
+  const selectedTur = (document.getElementById('ggFilterTur')?.value || '').trim();
+  const q = (document.getElementById('ggFilterSearch')?.value || '').toLocaleLowerCase('tr').trim();
+  const start = document.getElementById('ggFilterStart')?.value;
+  const end = document.getElementById('ggFilterEnd')?.value;
+  const startMs = filterStartMs(start);
+  const endMs = filterEndMs(end);
+  const filtered = (GG || []).filter(g => {
+    if(selectedTur && g.tur !== selectedTur) return false;
+    const gMs = appDateMs(g.tarih || g.created_at);
+    if(startMs && Number.isFinite(gMs) && gMs < startMs) return false;
+    if(endMs && Number.isFinite(gMs) && gMs > endMs) return false;
+    const haystack = `${g.tur || ''} ${g.kategori || ''} ${g.aciklama || ''} ${g.tutar || ''} ${formatTRDateTime(g.tarih)}`.toLocaleLowerCase('tr');
+    return !q || haystack.includes(q);
+  }).sort(compareByNewest);
+  const summary = document.getElementById('ggFilterSummary');
+  if(summary){
+    const gelirTop = filtered.filter(g => g.tur === 'gelir').reduce((a,g)=>a+toNum(g.tutar),0);
+    const giderTop = filtered.filter(g => g.tur === 'gider').reduce((a,g)=>a+toNum(g.tutar),0);
+    summary.innerHTML = `
+      <span class="tag">Kayit: ${filtered.length}</span>
+      <span class="tag success">Gelir: ${fmt(gelirTop)}</span>
+      <span class="tag danger">Gider: ${fmt(giderTop)}</span>
+      <span class="tag">Net: ${fmt(gelirTop - giderTop)}</span>
+    `;
+  }
+  filtered.forEach(g=>{
     const tr = document.createElement("tr");
     tr.innerHTML=`
       <td data-label="Tarih">${formatTRDateTime(g.tarih)}</td>
@@ -2646,7 +2843,7 @@ function renderGG(){
   ggListe.querySelectorAll("[data-edit]").forEach(b=>{
     b.onclick=()=>{
       const g = GG.find(x=>x.id==b.dataset.edit);
-      ggTur.value=g.tur; ggKat.value=g.kategori; ggTutar.value=g.tutar; ggAc.value=g.aciklama; ggTarih.value=g.tarih;
+      ggTur.value=g.tur; ggKat.value=g.kategori; ggTutar.value=g.tutar; ggAc.value=g.aciklama; ggTarih.value=toDateTimeInputValue(g.tarih);
       EDIT_GG_ID = g.id;
       const btn = document.getElementById('ggEkleBtn');
       btn.textContent = "Güncelle"; btn.classList.add('warning');
@@ -2654,6 +2851,14 @@ function renderGG(){
     }
   });
 }
+
+window.clearGGFilters = () => {
+  ['ggFilterTur','ggFilterSearch','ggFilterStart','ggFilterEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  renderGG();
+};
 
 /* =========================================================
    SELECTS & RENDER ALL
@@ -2741,8 +2946,210 @@ function renderAll(){
   renderGG();
   renderFaturalar();
   renderDash();
+  if(window.renderHistory) window.renderHistory();
+  renderNotes();
+  renderZReports();
   renderPdfHistory();
   applyResponsiveTableLabels();
+}
+
+const NOTES_KEY = 'pexura_notes';
+const Z_REPORTS_KEY = 'pexura_z_reports';
+
+function readLocalJson(key, fallback){
+  try{ return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }catch(e){ return fallback; }
+}
+
+function writeLocalJson(key, value){
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+window.saveNote = () => {
+  const title = (document.getElementById('noteTitle')?.value || '').trim();
+  const text = (document.getElementById('noteText')?.value || '').trim();
+  if(!title && !text) return showToast("Not bos olamaz.", "warning");
+  const notes = readLocalJson(NOTES_KEY, []);
+  notes.unshift({ id: crypto.randomUUID(), title: title || 'Not', text, created_at: new Date().toISOString() });
+  writeLocalJson(NOTES_KEY, notes);
+  document.getElementById('noteTitle').value = '';
+  document.getElementById('noteText').value = '';
+  renderNotes();
+  showToast("Not kaydedildi.", "success");
+};
+
+window.deleteNote = (id) => {
+  if(!confirm("Not silinsin mi?")) return;
+  const notes = readLocalJson(NOTES_KEY, []).filter(n => n.id !== id);
+  writeLocalJson(NOTES_KEY, notes);
+  renderNotes();
+};
+
+function renderNotes(){
+  const box = document.getElementById('notesList');
+  if(!box) return;
+  const notes = readLocalJson(NOTES_KEY, []);
+  if(!notes.length){
+    box.innerHTML = `<div class="muted">Henuz not yok.</div>`;
+    return;
+  }
+  box.innerHTML = notes.map(n => `
+    <div class="note-item">
+      <div class="note-head">
+        <strong>${escapeHtml(n.title || 'Not')}</strong>
+        <button class="danger" type="button" onclick="deleteNote('${n.id}')">Sil</button>
+      </div>
+      <div class="muted">${formatTRDateTime(n.created_at)}</div>
+      <p>${escapeHtml(n.text || '').replace(/\n/g, '<br>')}</p>
+    </div>
+  `).join('');
+}
+
+function addCurrency(map, curr, amount){
+  const key = curr || 'TL';
+  map[key] = Number(((map[key] || 0) + toNum(amount)).toFixed(2));
+}
+
+function formatCurrencyMap(map){
+  const entries = Object.entries(map || {}).filter(([,v]) => Math.abs(toNum(v)) > 0.000001);
+  if(!entries.length) return '0';
+  return entries.map(([cur,val]) => fmt(val, cur)).join(' | ');
+}
+
+function buildZReport(dateStr){
+  const report = {
+    id: dateStr,
+    date: dateStr,
+    created_at: new Date().toISOString(),
+    satis: {},
+    tahsilat: {},
+    odeme: {},
+    gelir: {},
+    gider: {},
+    net: {}
+  };
+
+  FATURALAR.filter(f => normalizeTip(f.tip)==='satis' && ymd(f.tarih) === dateStr)
+    .forEach(f => addCurrency(report.satis, f.para_birimi || 'TL', f.genel_toplam));
+  HAREKETLER.filter(h => ymd(h.tarih) === dateStr).forEach(h => {
+    const pb = HESAPLAR.find(x=>x.id==h.hesap_id)?.para_birimi || h.para_birimi || 'TL';
+    if(h.tur === 'tahsilat') addCurrency(report.tahsilat, pb, h.tutar);
+    if(h.tur === 'odeme') addCurrency(report.odeme, pb, h.tutar);
+  });
+  GG.filter(g => ymd(g.tarih) === dateStr).forEach(g => {
+    if(g.tur === 'gelir') addCurrency(report.gelir, 'TL', g.tutar);
+    if(g.tur === 'gider') addCurrency(report.gider, 'TL', g.tutar);
+  });
+
+  const currencies = new Set([
+    ...Object.keys(report.tahsilat),
+    ...Object.keys(report.odeme),
+    ...Object.keys(report.gelir),
+    ...Object.keys(report.gider)
+  ]);
+  currencies.forEach(cur => {
+    report.net[cur] = toNum(report.tahsilat[cur]) + toNum(report.gelir[cur]) - toNum(report.odeme[cur]) - toNum(report.gider[cur]);
+  });
+  return report;
+}
+
+function upsertZReport(dateStr){
+  const reports = readLocalJson(Z_REPORTS_KEY, []);
+  const report = buildZReport(dateStr);
+  const next = [report, ...reports.filter(r => r.date !== dateStr)]
+    .sort((a,b)=> appDateMs(b.date) - appDateMs(a.date))
+    .slice(0, 400);
+  writeLocalJson(Z_REPORTS_KEY, next);
+  renderZReports();
+  renderLatestZReport();
+  return report;
+}
+
+function generateMissingZReports(){
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const yesterday = ymd(d);
+  const reports = readLocalJson(Z_REPORTS_KEY, []);
+  if(!reports.some(r => r.date === yesterday)) upsertZReport(yesterday);
+}
+
+window.manualZReport = () => {
+  const date = document.getElementById('zReportDate')?.value || todayStr();
+  upsertZReport(date);
+  showToast("Z raporu olusturuldu.", "success");
+};
+
+window.deleteZReport = (date) => {
+  if(!confirm("Z raporu silinsin mi?")) return;
+  writeLocalJson(Z_REPORTS_KEY, readLocalJson(Z_REPORTS_KEY, []).filter(r => r.date !== date));
+  renderZReports();
+  renderLatestZReport();
+};
+
+function renderZReports(){
+  const body = document.getElementById('zReportList');
+  if(!body) return;
+  const reports = readLocalJson(Z_REPORTS_KEY, []);
+  body.innerHTML = reports.length ? reports.map(r => `
+    <tr>
+      <td data-label="Tarih">${formatDateTR(r.date).slice(0,10)}</td>
+      <td data-label="Satis">${formatCurrencyMap(r.satis)}</td>
+      <td data-label="Tahsilat">${formatCurrencyMap(r.tahsilat)}</td>
+      <td data-label="Odeme">${formatCurrencyMap(r.odeme)}</td>
+      <td data-label="Gider">${formatCurrencyMap(r.gider)}</td>
+      <td data-label="Net">${formatCurrencyMap(r.net)}</td>
+      <td data-label="Islem"><button class="danger" onclick="deleteZReport('${r.date}')">Sil</button></td>
+    </tr>
+  `).join('') : `<tr><td colspan="7" class="muted">Z raporu yok.</td></tr>`;
+}
+
+function renderLatestZReport(){
+  const box = document.getElementById('dashZRaporOzet');
+  const dateInput = document.getElementById('zReportDate');
+  if(dateInput && !dateInput.value) dateInput.value = todayStr();
+  if(!box) return;
+  const reports = readLocalJson(Z_REPORTS_KEY, []);
+  if(!reports.length){
+    box.innerHTML = `<div class="muted">Henuz Z raporu yok.</div>`;
+    return;
+  }
+  const r = reports[0];
+  box.innerHTML = `
+    <div><b>Son rapor:</b> ${r.date}</div>
+    <div><b>Satis:</b> ${formatCurrencyMap(r.satis)}</div>
+    <div><b>Tahsilat:</b> ${formatCurrencyMap(r.tahsilat)}</div>
+    <div><b>Net:</b> ${formatCurrencyMap(r.net)}</div>
+  `;
+}
+
+function getCalculationIssues(){
+  const issues = [];
+  const kalemByFatura = {};
+  (TUM_KALEMLER || []).forEach(k => { (kalemByFatura[k.fatura_id] ||= []).push(k); });
+  (FATURALAR || []).forEach(f => {
+    const sum = (kalemByFatura[f.id] || []).reduce((a,k)=> a + (toNum(k.satir_tutar) || (toNum(k.miktar) * toNum(k.birim_fiyat))), 0);
+    if((kalemByFatura[f.id] || []).length && Math.abs(sum - toNum(f.ara_toplam || f.genel_toplam)) > 0.1){
+      issues.push(`Fatura ${f.numara || f.id}: kalem toplami kontrol edilmeli.`);
+    }
+  });
+  (URUNLER || []).filter(u => toNum(u.stok_miktar) < 0).forEach(u => issues.push(`${u.ad}: stok negatif.`));
+  (CARILER || []).forEach(c => {
+    const map = getCariBakiyeMap(c);
+    Object.entries(map).forEach(([cur,val]) => {
+      if(!Number.isFinite(toNum(val))) issues.push(`${c.ad}: ${cur} bakiye okunamadi.`);
+    });
+  });
+  return issues.slice(0, 8);
+}
+
+function renderCalculationAudit(){
+  const box = document.getElementById('dashHesapKontrol');
+  if(!box) return;
+  const issues = getCalculationIssues();
+  if(!issues.length){
+    box.innerHTML = `<div class="audit-ok">Hesap kontrolu temiz. Fatura, stok ve cari bakiye hesaplari normal gorunuyor.</div>`;
+    return;
+  }
+  box.innerHTML = `<ul>${issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
 }
 
 /* =========================================================
@@ -2814,8 +3221,10 @@ document.querySelectorAll(".navbtn").forEach(b => {
 (() => {
   const _fT = document.getElementById('fTarih');
   const _kT = document.getElementById('kTarih');
+  const _ggT = document.getElementById('ggTarih');
   if(_fT) _fT.value = nowLocalDT();
-  if(_kT) _kT.value = todayStr();
+  if(_kT) _kT.value = nowLocalDT();
+  if(_ggT) _ggT.value = nowLocalDT();
   const _kKomisyon = document.getElementById('kKomisyonOran');
   const _cpKomisyon = document.getElementById('cpKomisyonOran');
   if(_kKomisyon) _kKomisyon.value = "0";
@@ -2827,6 +3236,16 @@ document.querySelectorAll(".navbtn").forEach(b => {
   const refresh = () => renderKomisyonOzet({tutarId:'kTutar', tipId:'kOdemeTipi', oranId:'kKomisyonOran', boxId:'kKomisyonOzet', hesapId:'kHesap', turId:'kTur'});
   el.addEventListener('input', refresh);
   el.addEventListener('change', refresh);
+});
+['hareketSearch','ggFilterSearch'].forEach(id => {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('keydown', (ev) => {
+    if(ev.key !== 'Enter') return;
+    ev.preventDefault();
+    if(id === 'hareketSearch') renderHareketler();
+    if(id === 'ggFilterSearch') renderGG();
+  });
 });
 document.getElementById('kKdv').value = "0";
 document.getElementById('uKdv').value = "0";
@@ -3095,7 +3514,7 @@ window.cpFinansIsle = async () => {
     try{
       await createKartKomisyonGider({
         info: komisyonInfo,
-        tarih: todayStr(),
+        tarih: nowLocalDTWithSeconds(),
         cariId: ACTIVE_CARI_ID,
         aciklama: kayitAciklamaBase,
         kaynak: 'Cari panel tahsilatı'
@@ -3230,7 +3649,7 @@ window.downloadCariEkstrePdf = async (cariId) => {
     const cari = CARILER.find(c => String(c.id) === String(cariId));
     if(!cari) return showToast('Müşteri bulunamadı.', 'error');
 
-    const faturas = (FATURALAR||[]).filter(f => String(f.cari_id) === String(cariId)).slice().sort((a,b)=> new Date(a.tarih) - new Date(b.tarih));
+    const faturas = (FATURALAR||[]).filter(f => String(f.cari_id) === String(cariId)).slice().sort((a,b)=> appDateMs(a.tarih) - appDateMs(b.tarih));
     const faturaIds = faturas.map(f => f.id);
     let kalemler = (TUM_KALEMLER||[]).filter(k => faturaIds.some(id => String(id) === String(k.fatura_id)));
     if(faturaIds.length && kalemler.length === 0){
@@ -3322,7 +3741,7 @@ window.downloadCariEkstrePdf = async (cariId) => {
     rows.sort((a,b)=>{
       const pa = String(a[0]).split(' ')[0].split('.').reverse().join('-') + ' ' + (String(a[0]).split(' ')[1]||'00:00');
       const pb = String(b[0]).split(' ')[0].split('.').reverse().join('-') + ' ' + (String(b[0]).split(' ')[1]||'00:00');
-      return new Date(pa) - new Date(pb);
+      return appDateMs(pa) - appDateMs(pb);
     });
 
     doc.autoTable({
@@ -3606,9 +4025,36 @@ window.renderHistory = () => {
     });
   });
 
-  allEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+  (STOK_LOGS || []).forEach(s => {
+    const urun = URUNLER.find(u => u.id == s.urun_id);
+    allEvents.push({
+      id: s.id,
+      type: 'stok',
+      date: s.tarih || s.created_at,
+      label: 'Stok Logu',
+      desc: `${urun?.ad || s.urun_ad_snapshot || 'Urun'} - ${s.tur || ''} - ${s.aciklama || ''}`,
+      amount: s.miktar || s.degisim || 0,
+      currency: '',
+      color: '#f59e0b'
+    });
+  });
+
+  (SYSTEM_LOGS || []).forEach(l => {
+    allEvents.push({
+      id: l.id,
+      type: 'log',
+      date: l.created_at || l.tarih,
+      label: 'Sistem Logu',
+      desc: `${l.table_name || '-'} - ${l.action_type || '-'} - Kayit: ${l.record_id || '-'}`,
+      amount: 0,
+      currency: '',
+      color: '#a78bfa'
+    });
+  });
+
+  allEvents.sort((a, b) => appDateMs(b.date) - appDateMs(a.date));
   allEvents
-    .filter(e => e.label.toLocaleLowerCase('tr').includes(searchTerm) || e.desc.toLocaleLowerCase('tr').includes(searchTerm))
+    .filter(e => String(e.label || '').toLocaleLowerCase('tr').includes(searchTerm) || String(e.desc || '').toLocaleLowerCase('tr').includes(searchTerm))
     .forEach(e => {
       tbody.innerHTML += `
         <tr>
@@ -3617,8 +4063,10 @@ window.renderHistory = () => {
           <td>${e.desc}</td>
           <td style="font-weight:bold; color:${e.color}">${fmt(e.amount, e.currency)}</td>
           <td>
-            <button class="warning" style="margin-right:5px;" onclick="jumpToEdit('${e.type}', '${e.id}')">Düzenle</button>
-            <button class="danger" onclick="deleteHistoryItem('${e.type}', '${e.id}')">Sil</button>
+            ${e.type === 'log' || e.type === 'stok'
+              ? '<span class="muted">Kayit</span>'
+              : `<button class="warning" style="margin-right:5px;" onclick="jumpToEdit('${e.type}', '${e.id}')">Düzenle</button>
+                 <button class="danger" onclick="deleteHistoryItem('${e.type}', '${e.id}')">Sil</button>`}
           </td>
         </tr>`;
   });
@@ -3637,6 +4085,7 @@ window.jumpToEdit = (type, id) => {
 };
 
 window.deleteHistoryItem = async (type, id) => {
+  if(type === 'log' || type === 'stok') return showToast("Log kayitlari buradan silinmez.", "warning");
   if(!confirm("Bu işlemi silmek ve stokları geri almak istediğine emin misin? (Geri alınamaz)")) return;
 
   if(type === 'fatura') {
@@ -3888,7 +4337,7 @@ async function doRestoreFromJsonText(text){
 function runStartupAlerts(){
   // kritik stoklar
   const kritikler = URUNLER.filter(u=>toNum(u.stok_miktar)<=toNum(u.min_stok));
-  if(kritikler.length){
+  if(false && kritikler.length){
     showToast(`${kritikler.length} ürün kritik stokta!`, "warning");
   }
 }
@@ -4224,7 +4673,7 @@ window.addTahsilatFromDetay = async () => {
 
     await createKartKomisyonGider({
       info: komisyonInfo,
-      tarih: todayStr(),
+      tarih: nowLocalDTWithSeconds(),
       cariId: f.cari_id,
       aciklama: `Fatura tahsilatı: ${f.numara || f.id}`,
       kaynak: 'Fatura tahsilatı'

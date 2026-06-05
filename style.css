@@ -1549,3 +1549,86 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
     grid-template-columns: 1fr !important;
   }
 }
+
+.filter-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  margin:0 0 12px 0;
+}
+.filter-bar input,
+.filter-bar button{
+  margin:0;
+  min-height:38px;
+}
+.filter-bar input{
+  flex:1 1 160px;
+}
+.filter-bar button{
+  flex:0 0 auto;
+}
+.filter-summary{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 12px 0;
+}
+.overdue-star{
+  color:#ef4444;
+  font-weight:900;
+  font-size:18px;
+  margin-right:4px;
+  vertical-align:middle;
+  text-shadow:0 0 10px rgba(239,68,68,.45);
+}
+.audit-box{
+  min-height:78px;
+  padding:12px;
+  border:1px solid rgba(148,163,184,.22);
+  border-radius:8px;
+  background:rgba(15,23,42,.38);
+  color:#cbd5e1;
+  line-height:1.55;
+}
+.audit-box ul{
+  margin:0;
+  padding-left:18px;
+}
+.audit-ok{
+  color:#86efac;
+  font-weight:700;
+}
+.notes-list{
+  display:grid;
+  gap:10px;
+}
+.note-item{
+  border:1px solid rgba(148,163,184,.22);
+  border-radius:8px;
+  padding:12px;
+  background:rgba(15,23,42,.4);
+}
+.note-head{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+}
+.note-item p{
+  margin:8px 0 0;
+  white-space:normal;
+  word-break:break-word;
+  color:#e2e8f0;
+}
+
+@media(max-width:640px){
+  .filter-bar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .filter-bar input,
+  .filter-bar button{
+    width:100%;
+  }
+}

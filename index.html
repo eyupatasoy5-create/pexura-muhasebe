@@ -87,6 +87,7 @@
     <button class="navbtn" data-tab="kasa">💰 Kasa</button>
     <button class="navbtn" data-tab="gelirgider">📉 Gelir/Gider</button>
     <button class="navbtn" data-tab="gecmis">🕒 İşlem Geçmişi</button>
+    <button class="navbtn" data-tab="notlar">Notlar</button>
   </nav>
 
   <main>
@@ -421,7 +422,7 @@
             <input id="kKomisyonOran" type="number" step="0.01" min="0" value="0" placeholder="Kesinti / komisyon %"/>
           </div>
           <div id="kKomisyonOzet" class="commission-summary hide"></div>
-          <input id="kTarih" type="date"/>
+          <input id="kTarih" type="datetime-local"/>
           <select id="kCari"></select>
           <input id="kAciklama" placeholder="Açıklama"/>
           <button class="success" style="width:100%; margin-top:10px" id="kEkleBtn">İşlemi Kaydet</button>
@@ -429,7 +430,15 @@
 
         <div class="card" style="grid-column: span 7;">
           <h2>Hesaplar</h2><table class="responsive-table"><tbody id="hesapListe"></tbody></table><br>
-          <h2>Hareketler</h2><table class="responsive-table"><tbody id="hareketListe"></tbody></table>
+          <h2>Hareketler</h2>
+          <div class="filter-bar">
+            <input id="hareketSearch" placeholder="Tahsilat / hareket ara..." oninput="renderHareketler()">
+            <input id="hareketStart" type="datetime-local" onchange="renderHareketler()">
+            <input id="hareketEnd" type="datetime-local" onchange="renderHareketler()">
+            <button type="button" class="primary" onclick="renderHareketler()">Ara</button>
+            <button type="button" onclick="clearHareketFilters()">Temizle</button>
+          </div>
+          <table class="responsive-table"><tbody id="hareketListe"></tbody></table>
         </div>
       </div>
     </section>
@@ -443,10 +452,25 @@
            <input id="ggKat" placeholder="Kategori"/>
            <input id="ggTutar" type="number" placeholder="Tutar"/>
            <input id="ggAc" placeholder="Açıklama"/>
-           <input id="ggTarih" type="date"/>
+           <input id="ggTarih" type="datetime-local"/>
            <button class="primary" style="margin-top:10px" id="ggEkleBtn">Ekle</button>
          </div>
-         <div class="card" style="grid-column: span 8;"><table class="responsive-table"><tbody id="ggListe"></tbody></table></div>
+         <div class="card" style="grid-column: span 8;">
+           <div class="filter-bar">
+             <select id="ggFilterTur" onchange="renderGG()">
+               <option value="">Tumu</option>
+               <option value="gelir">Gelir</option>
+               <option value="gider">Gider</option>
+             </select>
+             <input id="ggFilterSearch" placeholder="Gelir/Gider ara..." oninput="renderGG()">
+             <input id="ggFilterStart" type="datetime-local" onchange="renderGG()">
+             <input id="ggFilterEnd" type="datetime-local" onchange="renderGG()">
+             <button type="button" class="primary" onclick="renderGG()">Ara</button>
+             <button type="button" onclick="clearGGFilters()">Temizle</button>
+           </div>
+           <div id="ggFilterSummary" class="filter-summary"></div>
+           <table class="responsive-table"><tbody id="ggListe"></tbody></table>
+         </div>
       </div>
     </section>
 
@@ -472,6 +496,41 @@
             </thead>
             <tbody id="historyList"></tbody>
           </table>
+      </div>
+    </section>
+
+    <!-- NOTLAR -->
+    <section id="tab-notlar" class="tab hide">
+      <div class="grid">
+        <div class="card" style="grid-column: span 4;">
+          <h2>Not Ekle</h2>
+          <input id="noteTitle" placeholder="Baslik">
+          <textarea id="noteText" placeholder="Not yaz..." rows="8"></textarea>
+          <button class="primary" type="button" onclick="saveNote()" style="width:100%; margin-top:10px;">Notu Kaydet</button>
+        </div>
+        <div class="card" style="grid-column: span 8;">
+          <h2>Not Defteri</h2>
+          <div id="notesList" class="notes-list"></div>
+        </div>
+        <div class="card" style="grid-column: span 12;">
+          <h2>Hesap Kontrolu</h2>
+          <div id="dashHesapKontrol" class="audit-box"></div>
+        </div>
+        <div class="card" style="grid-column: span 12;">
+          <h2>Gunluk Z Raporu</h2>
+          <div id="dashZRaporOzet" class="audit-box"></div>
+          <div class="row" style="margin-top:10px;">
+            <input id="zReportDate" type="date" style="margin:0;">
+            <button type="button" class="info" onclick="manualZReport()">Z Raporu Al</button>
+          </div>
+        </div>
+        <div class="card" style="grid-column: span 12;">
+          <h2>Z Raporlari</h2>
+          <table class="responsive-table">
+            <thead><tr><th>Tarih</th><th>Satis</th><th>Tahsilat</th><th>Odeme</th><th>Gider</th><th>Net</th><th>Islem</th></tr></thead>
+            <tbody id="zReportList"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>
