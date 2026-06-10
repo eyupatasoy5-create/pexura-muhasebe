@@ -767,6 +767,53 @@ function renderDashSatisKarListesi(curr='USD'){
   }
 }
 
+function calcGenelKarZarar(curr='USD'){
+  const kalemByFatura = new Map();
+  for(const k of (TUM_KALEMLER || [])){
+    const fid = k.fatura_id;
+    if(!fid) continue;
+    if(!kalemByFatura.has(fid)) kalemByFatura.set(fid, []);
+    kalemByFatura.get(fid).push(k);
+  }
+
+  let satisKari = 0;
+  (FATURALAR || [])
+    .filter(f => (f.para_birimi || 'USD') === curr)
+    .forEach(f => {
+      const factor = normalizeTip(f.tip) === 'iade' ? -1 : 1;
+      const kalemler = kalemByFatura.get(f.id) || [];
+      if(kalemler.length){
+        kalemler.forEach(k => {
+          const miktar = toNum(k.miktar);
+          const satis = toNum(k.birim_fiyat || k.satis_fiyat_snapshot);
+          const alis = toNum(k.alis_fiyat_snapshot);
+          satisKari += factor * (miktar * (satis - alis));
+        });
+      }
+    });
+
+  const ekGelir = (GG || [])
+    .filter(g => g.tur === 'gelir')
+    .reduce((sum,g)=> sum + toNum(g.tutar), 0);
+  const toplamGider = (GG || [])
+    .filter(g => g.tur === 'gider')
+    .reduce((sum,g)=> sum + toNum(g.tutar), 0);
+  const net = satisKari + ekGelir - toplamGider;
+  return { satisKari, ekGelir, toplamGider, net };
+}
+
+function renderGenelKarZarar(curr='USD'){
+  const data = calcGenelKarZarar(curr);
+  const elSatisKar = document.getElementById('dashGenelSatisKar');
+  const elGelir = document.getElementById('dashGenelGelir');
+  const elGider = document.getElementById('dashGenelGider');
+  const elNet = document.getElementById('dashGenelNet');
+  if(elSatisKar) elSatisKar.innerHTML = `<span style="color:${data.satisKari >= 0 ? '#4ade80' : '#ef4444'}">${fmt(data.satisKari, curr)}</span>`;
+  if(elGelir) elGelir.textContent = fmt(data.ekGelir, curr);
+  if(elGider) elGider.textContent = fmt(data.toplamGider, curr);
+  if(elNet) elNet.innerHTML = `<span style="color:${data.net >= 0 ? '#4ade80' : '#ef4444'}">${fmt(data.net, curr)}</span>`;
+}
+
 
 function renderDash(){
   const currElem = document.getElementById('dashCurrencySelect');
@@ -901,6 +948,7 @@ function renderDash(){
   if(eAS) eAS.textContent = fmt(monthSales, curr);
   if(eAG) eAG.textContent = fmt(monthGider, curr);
   if(eAK) eAK.innerHTML = `<span style="color:${monthNetProfit>=0?'#4ade80':'#ef4444'}">${fmt(monthNetProfit, curr)}</span>`;
+  renderGenelKarZarar(curr);
 
   // En borçlu 5 cari (seçili para birimi)
   const topBorclu = (CARILER||[])
