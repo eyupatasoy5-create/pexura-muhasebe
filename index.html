@@ -34,6 +34,7 @@
   </div>
 
   <div class="header-right">
+      <span id="connectionBadge" class="connection-badge" aria-live="polite">Çevrimiçi</span>
       <input type="file" id="importFile" accept=".json" style="display:none" />
       <div class="action-group">
           <button id="restoreBtn" class="group-btn warning">📂 Yükle</button>
@@ -55,6 +56,18 @@
     <span id="authUserMail"></span>
     <button id="btnShowChangePass" type="button">Şifre Değiştir</button>
     <button id="btnSecuritySetup" type="button">Gizli Soruları Ayarla</button>
+    <div class="dashboard-toolbar auth-dashboard-tools">
+      <label for="dashCurrencySelect">Para Birimi</label>
+      <select id="dashCurrencySelect">
+        <option value="USD" selected>$ Dolar</option>
+        <option value="TL">₺ TL</option>
+        <option value="EUR">€ Euro</option>
+      </select>
+      <div class="dashboard-layout-actions">
+        <button id="dashboardLayoutToggle" class="secondary" type="button" onclick="toggleDashboardLayout()">Düzeni Değiştir</button>
+        <button id="dashboardLayoutReset" class="secondary hide" type="button" onclick="resetDashboardLayout()">Varsayılana Dön</button>
+      </div>
+    </div>
     <button id="btnLogout">Çıkış</button>
     <div id="changePassBox" class="change-pass-box hide">
       <div class="security-question-row">
@@ -86,6 +99,7 @@
     <button class="navbtn" data-tab="urunler">📦 Ürünler</button>
     <button class="navbtn" data-tab="kasa">💰 Kasa</button>
     <button class="navbtn" data-tab="gelirgider">📉 Gelir/Gider</button>
+    <button class="navbtn" data-tab="raporlar">📈 Raporlar</button>
     <button class="navbtn" data-tab="gecmis">🕒 İşlem Geçmişi</button>
     <button class="navbtn" data-tab="notlar">Notlar</button>
   </nav>
@@ -94,15 +108,6 @@
     <!-- DASHBOARD -->
     <section id="tab-dash" class="tab">
       <div class="grid">
-        <div class="card" style="grid-column: span 12; display:flex; align-items:center; gap:15px; background: rgba(59, 130, 246, 0.1); border-color: #3b82f6;">
-            <h3 style="margin:0; border:none; color: #60a5fa;">Para Birimi:</h3>
-            <select id="dashCurrencySelect" style="width: auto; min-width: 150px; margin:0;">
-                <option value="USD" selected>$ Dolar</option>
-                <option value="TL">₺ TL</option>
-                <option value="EUR">€ Euro</option>
-            </select>
-        </div>
-
         <div class="card kpi"><div class="label">Ürün Çeşidi & Değeri</div><div class="val" id="dashStokDeger">0</div></div>
         <div class="card kpi"><div class="label">Ürün Maliyet Değeri</div><div class="val" id="dashUrunMaliyet">0</div></div>
         <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
@@ -122,22 +127,74 @@
         <div class="card" style="grid-column: span 6;">
           <h2>Bu Ay</h2>
           <div class="dash-kv">
-            <div class="kv"><span>Satış</span><strong id="dashBuAySatis">0</strong></div>
+            <div class="kv"><span>Net Ürün Satışı</span><strong id="dashBuAySatis">0</strong></div>
+            <div class="kv"><span>Satılan Ürün Maliyeti</span><strong id="dashBuAyMaliyet">0</strong></div>
+            <div class="kv"><span>Ürünlerden Brüt Kâr</span><strong id="dashBuAyBrutKar">0</strong></div>
+            <div class="kv"><span>Diğer Gelir</span><strong id="dashBuAyGelir">0</strong></div>
             <div class="kv"><span>Gider</span><strong id="dashBuAyGider">0</strong></div>
-            <div class="kv"><span>Net Kâr</span><strong id="dashBuAyNetKar">0</strong></div>
+            <div class="kv"><span>Ayın Net Kâr/Zararı</span><strong id="dashBuAyNetKar">0</strong></div>
           </div>
-          <div class="muted" style="margin-top:8px;">Giderler şu an tek para birimi olarak kaydediliyorsa (genelde TL), net kâr buna göre hesaplanır.</div>
+          <div class="muted" style="margin-top:8px;">Satış ve iadeler ürün kalemlerinden hesaplanır. Gider ve diğer gelir ayrı gösterilir.</div>
         </div>
 
         <div class="card" style="grid-column: span 12;">
-          <h2>Genel Kar / Zarar</h2>
+          <h2>Başlangıçtan Bugüne Genel Kâr / Zarar</h2>
           <div class="dash-kv">
-            <div class="kv"><span>Satis Kari</span><strong id="dashGenelSatisKar">0</strong></div>
-            <div class="kv"><span>Ek Gelir</span><strong id="dashGenelGelir">0</strong></div>
+            <div class="kv"><span>Net Ürün Satışı</span><strong id="dashGenelNetSatis">0</strong></div>
+            <div class="kv"><span>Satılan Ürün Maliyeti</span><strong id="dashGenelMaliyet">0</strong></div>
+            <div class="kv"><span>Ürünlerden Brüt Kâr</span><strong id="dashGenelSatisKar">0</strong></div>
+            <div class="kv"><span>Diğer Gelir</span><strong id="dashGenelGelir">0</strong></div>
             <div class="kv"><span>Toplam Gider</span><strong id="dashGenelGider">0</strong></div>
-            <div class="kv"><span>Net Sonuc</span><strong id="dashGenelNet">0</strong></div>
+            <div class="kv"><span>Toplam Tahsilat</span><strong id="dashGenelTahsilat">0</strong></div>
+            <div class="kv"><span>Toplam Ödeme</span><strong id="dashGenelOdeme">0</strong></div>
+            <div class="kv"><span>Stoktaki Ürünlerin Maliyeti</span><strong id="dashGenelStokMaliyet">0</strong></div>
+            <div class="kv result-kv"><span>NET SONUÇ</span><strong id="dashGenelNet">0</strong></div>
           </div>
-          <div class="muted" style="margin-top:8px;">Programdaki ilk kayittan bugune kadar hesaplanir. Iadeler satis karindan duser.</div>
+          <div id="dashGenelDurum" class="profit-status" aria-live="polite"></div>
+          <div class="muted" style="margin-top:8px;">Net sonuç = ürünlerden brüt kâr + diğer gelir − gider. Tahsilat/ödeme nakit hareketidir; stok maliyeti ise varlıktır ve net kâra ikinci kez eklenmez.</div>
+        </div>
+
+        <div class="card report-card" style="grid-column: span 12;">
+          <div class="report-card-head">
+            <div><h2>Aylık Kâr Eğilimi</h2><div class="muted">Son 6 ay ve önceki ay karşılaştırması</div></div>
+            <div id="dashMonthCompare" class="comparison-pill">—</div>
+          </div>
+          <div id="dashProfitChart" class="profit-chart" role="img" aria-label="Son altı ay net kâr grafiği"></div>
+        </div>
+
+        <div class="card report-card" style="grid-column: span 12;">
+          <div class="report-card-head"><div><h2>Tarih Aralığı Kâr / Zarar</h2><div class="muted">Seçtiğiniz dönemin sonucunu hesaplayın</div></div></div>
+          <div class="date-report-controls">
+            <label>Başlangıç<input id="profitRangeStart" type="date"></label>
+            <label>Bitiş<input id="profitRangeEnd" type="date"></label>
+            <button type="button" class="primary" onclick="renderCustomProfitReport()">Hesapla</button>
+          </div>
+          <div id="customProfitResult" class="range-report-grid"></div>
+        </div>
+
+        <div class="card report-card" style="grid-column: span 6;">
+          <h2>En Çok Kazandıran Ürünler</h2>
+          <table class="responsive-table professional-table">
+            <thead><tr><th>Ürün</th><th>Satış</th><th>Kâr</th></tr></thead>
+            <tbody id="dashTopProfitProducts"></tbody>
+          </table>
+        </div>
+
+        <div class="card report-card" style="grid-column: span 6;">
+          <h2>En Çok Satan Ürünler</h2>
+          <table class="responsive-table professional-table">
+            <thead><tr><th>Ürün</th><th>Adet</th><th>Son Satış</th></tr></thead>
+            <tbody id="dashTopSellingProducts"></tbody>
+          </table>
+        </div>
+
+        <div class="card report-card" style="grid-column: span 12;">
+          <h2>Uzun Süredir Satılmayan Ürünler</h2>
+          <table class="responsive-table professional-table">
+            <thead><tr><th>Ürün</th><th>Stok</th><th>Son Satış</th><th>Bekleme</th></tr></thead>
+            <tbody id="dashDormantProducts"></tbody>
+          </table>
+          <div class="muted" style="margin-top:8px;">Stokta bulunan ve 60 günden uzun süredir satılmayan ürünler listelenir.</div>
         </div>
 
         <div class="card" style="grid-column: span 12;">
@@ -210,6 +267,14 @@
           </table>
         </div>
       </div>
+    </section>
+
+    <!-- RAPORLAR -->
+    <section id="tab-raporlar" class="tab hide">
+      <div class="reports-page-head">
+        <div><h2>Raporlar ve Analizler</h2><div class="muted">Kâr eğilimleri, dönemsel sonuçlar ve ürün performansı</div></div>
+      </div>
+      <div id="reportsGrid" class="grid"></div>
     </section>
 
     <!-- FATURALAR -->
@@ -491,7 +556,7 @@
           <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:20px; gap:10px;">
             <h2 style="border:none; margin:0;">Tüm İşlem Geçmişi</h2>
             <div style="display:flex; gap:10px; align-items:center;">
-                <input type="text" id="historySearch" placeholder="İşlem ara..." style="width:250px; margin:0;" onkeyup="renderHistory()">
+                <input type="text" id="historySearch" placeholder="İşlem ara..." style="width:250px; margin:0;">
                 <button class="danger" style="padding: 10px 15px;" onclick="clearAllHistory()">🗑️ Tümünü Temizle</button>
             </div>
           </div>
@@ -533,6 +598,7 @@
           <div class="row" style="margin-top:10px;">
             <input id="zReportDate" type="date" style="margin:0;">
             <button type="button" class="info" onclick="manualZReport()">Z Raporu Al</button>
+            <button type="button" class="success" onclick="exportMonthlyReportCsv()">Aylık CSV İndir</button>
           </div>
         </div>
         <div class="card" style="grid-column: span 12;">
@@ -802,36 +868,11 @@
 <!-- Mobil hızlı aksiyon butonu (FAB) -->
 <button id="fab" class="fab hide" type="button" aria-label="Yeni" title="Yeni">+</button>
 
+<script src="core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
 <script src="app.js"></script>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('Uygulama Hazır!'))
-        .catch((err) => console.log('Hata:', err));
-    });
-  }
-</script>
-
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    const input = document.getElementById("cariSearch");
-    if(!input) return;
-
-    input.addEventListener("keyup", function() {
-        const value = this.value.toLowerCase();
-        const rows = document.querySelectorAll("table tbody tr");
-
-        rows.forEach(row => {
-            const text = row.innerText.toLowerCase();
-            row.style.display = text.includes(value) ? "" : "none";
-        });
-    });
-});
-</script>
+<script src="pwa.js"></script>
 
 </body>
 </html>
