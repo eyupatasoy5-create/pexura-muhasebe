@@ -1848,10 +1848,18 @@ function renderCariler(){
   cariListe.innerHTML="";
   const isMobile = window.matchMedia("(max-width: 640px)").matches;
   const showPasif = !!document.getElementById('showPasifCariler')?.checked;
+  const searchTerm = String(document.getElementById('cariSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const list = (CARILER||[])
     .filter(c => showPasif ? true : (c.aktif !== false))
+    .filter(c => !searchTerm || [c.ad, c.tel, c.mail, c.adres, c.tur]
+      .some(value => String(value || '').toLocaleLowerCase('tr-TR').includes(searchTerm)))
     .slice()
     .sort((a,b)=> (a.aktif===false) - (b.aktif===false));
+
+  if(!list.length){
+    cariListe.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${searchTerm ? 'Aramanızla eşleşen müşteri bulunamadı.' : 'Müşteri bulunamadı.'}</td></tr>`;
+    return;
+  }
 
   list.forEach(c=>{
     const pasif = (c.aktif === false);
@@ -4685,6 +4693,10 @@ loadSession();
 document.getElementById('showPasifCariler')?.addEventListener('change', ()=>{
   try{ renderCariler(); }catch(e){}
 });
+
+document.getElementById('cariSearch')?.addEventListener('input', PexuraCore.debounce(()=>{
+  try{ renderCariler(); }catch(e){ console.error(e); }
+}, 160));
 
 document.getElementById('historySearch')?.addEventListener('input', PexuraCore.debounce(()=>{
   if(window.renderHistory) window.renderHistory();

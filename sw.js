@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v15-clean-net-result';
+const CACHE_NAME = 'pexura-v16-customer-search';
 const ASSETS = [
   './',
   './index.html',
