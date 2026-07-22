@@ -843,13 +843,7 @@ function renderGenelKarZarar(curr='USD'){
   const elNet = document.getElementById('dashGenelNet');
   if(elSatisKar) elSatisKar.innerHTML = `<span style="color:${data.brutKar >= 0 ? '#4ade80' : '#ef4444'}">${fmt(data.brutKar, curr)}</span>`;
   if(elNet) elNet.innerHTML = `<span style="color:${data.net >= 0 ? '#4ade80' : '#ef4444'}">${fmt(data.net, curr)}</span>`;
-  const status = document.getElementById('dashGenelDurum');
-  if(status){
-    status.className = `profit-status ${data.net > 0 ? 'is-profit' : (data.net < 0 ? 'is-loss' : 'is-even')}`;
-    status.textContent = data.net > 0
-      ? `KÂRDASINIZ: ${fmt(data.net, curr)}`
-      : (data.net < 0 ? `ZARARDASINIZ: ${fmt(Math.abs(data.net), curr)}` : 'BAŞA BAŞ DURUMDASINIZ');
-  }
+
 }
 
 function getMonthBounds(offset=0){

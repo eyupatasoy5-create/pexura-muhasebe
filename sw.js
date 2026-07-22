@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v14-pdf-debt-label';
+const CACHE_NAME = 'pexura-v15-clean-net-result';
 const ASSETS = [
   './',
   './index.html',
