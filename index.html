@@ -94,6 +94,7 @@
 <div class="wrap">
   <nav>
     <button class="navbtn active" data-tab="dash">📊 Dashboard</button>
+    <button class="navbtn" data-tab="finans">💼 Finans</button>
     <button class="navbtn" data-tab="faturalar">🧾 Fatura Kes</button>
     <button class="navbtn" data-tab="cariler">👥 Müşteriler</button>
     <button class="navbtn" data-tab="urunler">📦 Ürünler</button>
@@ -108,7 +109,45 @@
     <!-- DASHBOARD -->
     <section id="tab-dash" class="tab">
       <div class="grid">
-        <div class="card kpi"><div class="label">Ürün Çeşidi & Değeri</div><div class="val" id="dashStokDeger">0</div></div>
+        <div class="card finance-overview-card" id="dashFinancialOverview">
+          <div class="finance-overview-head">
+            <div>
+              <span class="finance-eyebrow">FİNANSAL DURUM</span>
+              <h2>Varlık ve Borç Özeti</h2>
+              <p>Kasa, stok ve cari hesaplarınızın tek ekranda güncel görünümü.</p>
+            </div>
+            <div class="dashboard-finance-head-actions">
+              <div class="finance-net-position">
+                <span>NET VARLIK</span>
+                <strong id="dashNetPosition">0</strong>
+                <small id="dashFinancialStatus">Hesaplanıyor</small>
+              </div>
+              <button id="dashboardFinanceToggle" class="dashboard-finance-toggle" type="button" onclick="toggleDashboardFinance()">Detayları Gizle</button>
+            </div>
+          </div>
+          <div class="dashboard-finance-details">
+            <div class="finance-columns">
+            <section class="finance-panel finance-assets">
+              <div class="finance-panel-title"><span>VARLIKLAR</span><strong id="dashTotalAssets">0</strong></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Kasa</span><b id="dashAssetCash">0</b></div><div class="finance-track"><i id="dashAssetCashBar" class="finance-fill finance-fill-cash"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Stok (Maliyet)</span><b id="dashAssetStock">0</b></div><div class="finance-track"><i id="dashAssetStockBar" class="finance-fill finance-fill-stock"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Müşteri Borçları</span><b id="dashAssetReceivables">0</b></div><div class="finance-track"><i id="dashAssetReceivablesBar" class="finance-fill finance-fill-receivable"></i></div></div>
+            </section>
+            <section class="finance-panel finance-liabilities">
+              <div class="finance-panel-title"><span>BORÇLAR</span><strong id="dashTotalLiabilities">0</strong></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Cari Borçlar</span><b id="dashLiabilityCari">0</b></div><div class="finance-track"><i id="dashLiabilityCariBar" class="finance-fill finance-fill-debt"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Negatif Kasa</span><b id="dashLiabilityCash">0</b></div><div class="finance-track"><i id="dashLiabilityCashBar" class="finance-fill finance-fill-negative"></i></div></div>
+              <div class="finance-row finance-row-muted"><div class="finance-row-line"><span>Toplam Yükümlülük</span><b id="dashLiabilitySummary">0</b></div><div class="finance-track"><i id="dashLiabilitySummaryBar" class="finance-fill finance-fill-summary"></i></div></div>
+            </section>
+            </div>
+            <div class="finance-health-strip">
+              <div><span>Tahsilat Oranı</span><strong id="dashCollectionRate">%0</strong><small>Satışlara göre tahsilat</small></div>
+              <div><span>Stok Payı</span><strong id="dashStockShare">%0</strong><small>Varlıklar içindeki stok</small></div>
+              <div><span>Borç / Varlık</span><strong id="dashDebtAssetRate">%0</strong><small>Finansal yük oranı</small></div>
+            </div>
+          </div>
+        </div>
+        <div class="card kpi"><div class="label">Stok Satış Değeri</div><div class="val" id="dashStokDeger">0</div></div>
         <div class="card kpi"><div class="label">Ürün Maliyet Değeri</div><div class="val" id="dashUrunMaliyet">0</div></div>
         <div class="card kpi"><div class="label">Toplam Satış</div><div class="val" id="dashToplamSatis">0</div></div>
         <div class="card kpi"><div class="label">Net Kasa</div><div class="val" id="dashNakit">0</div></div>
@@ -275,6 +314,68 @@
         <div><h2>Raporlar ve Analizler</h2><div class="muted">Kâr eğilimleri, dönemsel sonuçlar ve ürün performansı</div></div>
       </div>
       <div id="reportsGrid" class="grid"></div>
+    </section>
+
+    <!-- FİNANS -->
+    <section id="tab-finans" class="tab hide">
+      <div class="finance-page-head">
+        <div>
+          <span class="finance-eyebrow">FİNANS MERKEZİ</span>
+          <h2>Finansal Durum ve Varlık Yönetimi</h2>
+          <div class="muted">Kasa, stok, müşteri borçları ve yükümlülüklerin ayrıntılı görünümü</div>
+        </div>
+        <button type="button" class="primary" onclick="document.querySelector('button[data-tab=&quot;raporlar&quot;]').click()">Raporları Aç</button>
+      </div>
+      <div class="grid finance-page-grid">
+        <div class="card finance-overview-card finance-page-overview">
+          <div class="finance-overview-head">
+            <div>
+              <span class="finance-eyebrow">GÜNCEL FİNANSAL DURUM</span>
+              <h2>Varlık ve Borç Özeti</h2>
+              <p>Seçili para birimine göre tüm mali durumunuz.</p>
+            </div>
+            <div class="finance-net-position">
+              <span>NET VARLIK</span>
+              <strong id="finNetPosition">0</strong>
+              <small id="finFinancialStatus">Hesaplanıyor</small>
+            </div>
+          </div>
+          <div class="finance-columns">
+            <section class="finance-panel finance-assets">
+              <div class="finance-panel-title"><span>VARLIKLAR</span><strong id="finTotalAssets">0</strong></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Kasa</span><b id="finAssetCash">0</b></div><div class="finance-track"><i id="finAssetCashBar" class="finance-fill finance-fill-cash"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Stok (Maliyet)</span><b id="finAssetStock">0</b></div><div class="finance-track"><i id="finAssetStockBar" class="finance-fill finance-fill-stock"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Müşteri Borçları</span><b id="finAssetReceivables">0</b></div><div class="finance-track"><i id="finAssetReceivablesBar" class="finance-fill finance-fill-receivable"></i></div></div>
+            </section>
+            <section class="finance-panel finance-liabilities">
+              <div class="finance-panel-title"><span>BORÇLAR</span><strong id="finTotalLiabilities">0</strong></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Cari Borçlar</span><b id="finLiabilityCari">0</b></div><div class="finance-track"><i id="finLiabilityCariBar" class="finance-fill finance-fill-debt"></i></div></div>
+              <div class="finance-row"><div class="finance-row-line"><span>Negatif Kasa</span><b id="finLiabilityCash">0</b></div><div class="finance-track"><i id="finLiabilityCashBar" class="finance-fill finance-fill-negative"></i></div></div>
+              <div class="finance-row finance-row-muted"><div class="finance-row-line"><span>Toplam Yükümlülük</span><b id="finLiabilitySummary">0</b></div><div class="finance-track"><i id="finLiabilitySummaryBar" class="finance-fill finance-fill-summary"></i></div></div>
+            </section>
+          </div>
+          <div class="finance-health-strip">
+            <div><span>Tahsilat Oranı</span><strong id="finCollectionRate">%0</strong><small>Satışlara göre tahsilat</small></div>
+            <div><span>Stok Payı</span><strong id="finStockShare">%0</strong><small>Varlıklar içindeki stok</small></div>
+            <div><span>Borç / Varlık</span><strong id="finDebtAssetRate">%0</strong><small>Finansal yük oranı</small></div>
+          </div>
+        </div>
+        <div class="card finance-shortcut">
+          <span class="finance-shortcut-icon">💰</span>
+          <div><h3>Kasa Yönetimi</h3><p>Tahsilatları, ödemeleri ve hesap bakiyelerini yönetin.</p></div>
+          <button type="button" onclick="document.querySelector('button[data-tab=&quot;kasa&quot;]').click()">Kasaya Git</button>
+        </div>
+        <div class="card finance-shortcut">
+          <span class="finance-shortcut-icon">👥</span>
+          <div><h3>Müşteri Hesapları</h3><p>Borçlu müşterileri ve cari hareketleri inceleyin.</p></div>
+          <button type="button" onclick="document.querySelector('button[data-tab=&quot;cariler&quot;]').click()">Müşterilere Git</button>
+        </div>
+        <div class="card finance-shortcut">
+          <span class="finance-shortcut-icon">📈</span>
+          <div><h3>Kâr ve Analiz</h3><p>Aylık eğilimleri ve tarih aralığı raporlarını görüntüleyin.</p></div>
+          <button type="button" onclick="document.querySelector('button[data-tab=&quot;raporlar&quot;]').click()">Raporlara Git</button>
+        </div>
+      </div>
     </section>
 
     <!-- FATURALAR -->

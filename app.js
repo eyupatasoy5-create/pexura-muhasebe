@@ -969,22 +969,120 @@ function renderDash(){
     .forEach(f => { totalSales += Number(f.genel_toplam); });
   document.getElementById('dashToplamSatis').textContent = fmt(totalSales, curr);
 
-  let income = 0; let expense = 0;
+  let cashIn = 0;
+  let cashOut = 0;
   HAREKETLER.forEach(h => {
     const hesap = HESAPLAR.find(x => x.id == h.hesap_id);
     if(hesap && hesap.para_birimi === curr) {
-      if(h.tur === 'tahsilat') income += Number(h.tutar);
-      if(h.tur === 'odeme') expense += Number(h.tutar);
+      if(h.tur === 'tahsilat') cashIn += Number(h.tutar) || 0;
+      if(h.tur === 'odeme') cashOut += Number(h.tutar) || 0;
     }
   });
-  if(curr === 'USD') GG.forEach(g => {
-    if(g.tur === 'gelir') income += Number(g.tutar);
-    if(g.tur === 'gider') expense += Number(g.tutar);
-  });
-  const balance = income - expense;
+  const openingCash = HESAPLAR
+    .filter(h => h.para_birimi === curr)
+    .reduce((sum, h) => sum + (Number(h.acilis_bakiye) || 0), 0);
+  const balance = openingCash + cashIn - cashOut;
   document.getElementById('dashNakit').innerHTML =
     `<span style="color:${balance >= 0 ? '#4ade80' : '#ef4444'}">${fmt(balance, curr)}</span>`;
 
+  const cariBalanceForCurrency = (cari) => {
+    let result = curr === 'USD'
+      ? (Number(cari.acilis_borc) || 0) - (Number(cari.acilis_alacak) || 0)
+      : 0;
+    FATURALAR.filter(f => String(f.cari_id) === String(cari.id) && f.para_birimi === curr).forEach(f => {
+      const total = Number(f.genel_toplam) || 0;
+      result += normalizeTip(f.tip) === 'satis' ? total : -total;
+    });
+    HAREKETLER.filter(h => String(h.cari_id) === String(cari.id)).forEach(h => {
+      const hesap = HESAPLAR.find(x => String(x.id) === String(h.hesap_id));
+      if(hesap && hesap.para_birimi === curr) {
+        const amount = Number(h.tutar) || 0;
+        result += h.tur === 'tahsilat' ? -amount : amount;
+      }
+    });
+    return result;
+  };
+
+  let receivables = 0;
+  let cariLiabilities = 0;
+  CARILER.forEach(cari => {
+    const cariBalance = cariBalanceForCurrency(cari);
+    if(cariBalance > 0) receivables += cariBalance;
+    if(cariBalance < 0) cariLiabilities += Math.abs(cariBalance);
+  });
+
+  const cashAsset = Math.max(0, balance);
+  const negativeCash = Math.max(0, -balance);
+  const totalAssets = cashAsset + totalCostVal + receivables;
+  const totalLiabilities = cariLiabilities + negativeCash;
+  const netPosition = totalAssets - totalLiabilities;
+  const maxAsset = Math.max(cashAsset, totalCostVal, receivables, 1);
+  const maxLiability = Math.max(cariLiabilities, negativeCash, totalLiabilities, 1);
+  const setMoney = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = fmt(value, curr); };
+  const setBar = (id, value, max) => { const el = document.getElementById(id); if(el) el.style.width = `${Math.max(0, Math.min(100, value / max * 100))}%`; };
+  const setPercent = (id, value) => { const el = document.getElementById(id); if(el) el.textContent = `%${Math.max(0, value).toLocaleString('tr-TR', {maximumFractionDigits:1})}`; };
+
+  setMoney('dashTotalAssets', totalAssets);
+  setMoney('dashAssetCash', cashAsset);
+  setMoney('dashAssetStock', totalCostVal);
+  setMoney('dashAssetReceivables', receivables);
+  setMoney('dashTotalLiabilities', totalLiabilities);
+  setMoney('dashLiabilityCari', cariLiabilities);
+  setMoney('dashLiabilityCash', negativeCash);
+  setMoney('dashLiabilitySummary', totalLiabilities);
+  setMoney('dashNetPosition', netPosition);
+  setBar('dashAssetCashBar', cashAsset, maxAsset);
+  setBar('dashAssetStockBar', totalCostVal, maxAsset);
+  setBar('dashAssetReceivablesBar', receivables, maxAsset);
+  setBar('dashLiabilityCariBar', cariLiabilities, maxLiability);
+  setBar('dashLiabilityCashBar', negativeCash, maxLiability);
+  setBar('dashLiabilitySummaryBar', totalLiabilities, maxLiability);
+  setPercent('dashCollectionRate', totalSales > 0 ? cashIn / totalSales * 100 : 0);
+  setPercent('dashStockShare', totalAssets > 0 ? totalCostVal / totalAssets * 100 : 0);
+  setPercent('dashDebtAssetRate', totalAssets > 0 ? totalLiabilities / totalAssets * 100 : (totalLiabilities > 0 ? 100 : 0));
+
+  const netEl = document.getElementById('dashNetPosition');
+  const statusEl = document.getElementById('dashFinancialStatus');
+  const overviewEl = document.getElementById('dashFinancialOverview');
+  if(netEl) netEl.classList.toggle('is-negative', netPosition < 0);
+  if(overviewEl) overviewEl.classList.toggle('finance-negative', netPosition < 0);
+  if(statusEl) statusEl.textContent = netPosition >= 0 ? 'Pozitif finansal pozisyon' : 'Borçlar varlıkları aşıyor';
+  const financeMirrorIds = {
+    dashNetPosition:'finNetPosition',
+    dashFinancialStatus:'finFinancialStatus',
+    dashTotalAssets:'finTotalAssets',
+    dashAssetCash:'finAssetCash',
+    dashAssetStock:'finAssetStock',
+    dashAssetReceivables:'finAssetReceivables',
+    dashTotalLiabilities:'finTotalLiabilities',
+    dashLiabilityCari:'finLiabilityCari',
+    dashLiabilityCash:'finLiabilityCash',
+    dashLiabilitySummary:'finLiabilitySummary',
+    dashCollectionRate:'finCollectionRate',
+    dashStockShare:'finStockShare',
+    dashDebtAssetRate:'finDebtAssetRate'
+  };
+  Object.entries(financeMirrorIds).forEach(([sourceId,targetId])=>{
+    const source=document.getElementById(sourceId);
+    const target=document.getElementById(targetId);
+    if(source&&target) target.textContent=source.textContent;
+  });
+  [
+    ['dashAssetCashBar','finAssetCashBar'],
+    ['dashAssetStockBar','finAssetStockBar'],
+    ['dashAssetReceivablesBar','finAssetReceivablesBar'],
+    ['dashLiabilityCariBar','finLiabilityCariBar'],
+    ['dashLiabilityCashBar','finLiabilityCashBar'],
+    ['dashLiabilitySummaryBar','finLiabilitySummaryBar']
+  ].forEach(([sourceId,targetId])=>{
+    const source=document.getElementById(sourceId);
+    const target=document.getElementById(targetId);
+    if(source&&target) target.style.width=source.style.width;
+  });
+  const finNet=document.getElementById('finNetPosition');
+  const finOverview=document.querySelector('#tab-finans .finance-page-overview');
+  if(finNet) finNet.classList.toggle('is-negative',netPosition<0);
+  if(finOverview) finOverview.classList.toggle('finance-negative',netPosition<0);
   const kritikListe = document.getElementById('dashKritikListe');
   kritikListe.innerHTML = "";
   URUNLER.forEach(u => {
@@ -3160,6 +3258,7 @@ function renderTab(tab){
   if(tab === 'faturalar') renderFaturalar();
   if(tab === 'kasa'){ renderHesaplar(); renderHareketler(); }
   if(tab === 'gelirgider') renderGG();
+  if(tab === 'finans') renderDash();
   if(tab === 'raporlar') renderDash();
   if(tab === 'gecmis' && window.renderHistory) window.renderHistory();
   if(tab === 'notlar'){ renderNotes(); renderZReports(); renderLatestZReport(); renderCalculationAudit(); }
@@ -3439,6 +3538,7 @@ function setupReportsTab(){
 }
 
 const DASHBOARD_ORDER_KEY='pexura_dashboard_order_v1';
+const DASHBOARD_FINANCE_COLLAPSED_KEY='pexura_dashboard_finance_collapsed_v1';
 let DASHBOARD_DEFAULT_ORDER=[];
 
 function dashboardCards(){
@@ -3461,6 +3561,8 @@ function applyDashboardOrder(order){
   const map=new Map(dashboardCards().map(card=>[card.dataset.widgetId,card]));
   order.forEach(id=>{const card=map.get(id);if(card){grid.appendChild(card);map.delete(id);}});
   map.forEach(card=>grid.appendChild(card));
+  const financeOverview=document.getElementById('dashFinancialOverview');
+  if(financeOverview) grid.prepend(financeOverview);
 }
 
 function moveDashboardCard(card,direction){
@@ -3477,6 +3579,10 @@ function setupDashboardLayout(){
   const cards=dashboardCards();
   cards.forEach((card,index)=>{
     card.dataset.widgetId=getDashboardWidgetId(card,index);
+    if(card.id==='dashFinancialOverview'){
+      card.dataset.pinned='true';
+      return;
+    }
     const tools=document.createElement('div');
     tools.className='dashboard-widget-tools';
     tools.innerHTML='<button type="button" aria-label="Kartı önceye taşı">←</button><button type="button" aria-label="Kartı sonraya taşı">→</button>';
@@ -3522,8 +3628,26 @@ window.resetDashboardLayout=()=>{
   showToast('Varsayılan dashboard düzeni geri yüklendi.','info');
 };
 
+function applyDashboardFinanceState(collapsed){
+  const card=document.getElementById('dashFinancialOverview');
+  const button=document.getElementById('dashboardFinanceToggle');
+  if(!card||!button) return;
+  card.classList.toggle('finance-collapsed',!!collapsed);
+  button.textContent=collapsed?'Detayları Göster':'Detayları Gizle';
+  button.setAttribute('aria-expanded',String(!collapsed));
+}
+
+window.toggleDashboardFinance=()=>{
+  const card=document.getElementById('dashFinancialOverview');
+  if(!card) return;
+  const collapsed=!card.classList.contains('finance-collapsed');
+  applyDashboardFinanceState(collapsed);
+  localStorage.setItem(DASHBOARD_FINANCE_COLLAPSED_KEY,collapsed?'1':'0');
+};
+
 setupReportsTab();
 setupDashboardLayout();
+applyDashboardFinanceState(localStorage.getItem(DASHBOARD_FINANCE_COLLAPSED_KEY)==='1');
 setupMobileShell();
 
 document.querySelectorAll(".navbtn").forEach(b => {
