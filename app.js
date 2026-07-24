@@ -978,10 +978,11 @@ function renderDash(){
       if(h.tur === 'odeme') cashOut += Number(h.tutar) || 0;
     }
   });
-  const openingCash = HESAPLAR
-    .filter(h => h.para_birimi === curr)
-    .reduce((sum, h) => sum + (Number(h.acilis_bakiye) || 0), 0);
-  const balance = openingCash + cashIn - cashOut;
+  if(curr === 'USD') GG.forEach(g => {
+    if(g.tur === 'gelir') cashIn += Number(g.tutar) || 0;
+    if(g.tur === 'gider') cashOut += Number(g.tutar) || 0;
+  });
+  const balance = cashIn - cashOut;
   document.getElementById('dashNakit').innerHTML =
     `<span style="color:${balance >= 0 ? '#4ade80' : '#ef4444'}">${fmt(balance, curr)}</span>`;
 

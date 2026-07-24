@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v19-compact-finance';
+const CACHE_NAME = 'pexura-v20-cash-balance-fix';
 const ASSETS = [
   './',
   './index.html',
