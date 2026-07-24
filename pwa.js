@@ -17,7 +17,13 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', async () => {
       try {
-        const registration = await navigator.serviceWorker.register('./sw.js');
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+        const registration = await navigator.serviceWorker.register('./sw.js?v=21');
         registration.update().catch(() => {});
       } catch (error) {
         console.warn('Çevrimdışı çalışma başlatılamadı:', error);

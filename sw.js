@@ -1,11 +1,11 @@
-const CACHE_NAME = 'pexura-v20-cash-balance-fix';
+const CACHE_NAME = 'pexura-v21-cache-refresh';
 const ASSETS = [
   './',
   './index.html',
-  './style.css',
+  './style.css?v=21',
   './core.js',
-  './app.js',
-  './pwa.js',
+  './app.js?v=21',
+  './pwa.js?v=21',
   './pdf-font.js',
   './manifest.json',
   './icon.svg'
