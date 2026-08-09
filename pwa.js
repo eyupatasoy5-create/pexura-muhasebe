@@ -23,7 +23,7 @@
           refreshing = true;
           window.location.reload();
         });
-        const registration = await navigator.serviceWorker.register('./sw.js?v=21');
+        const registration = await navigator.serviceWorker.register('./sw.js?v=22');
         registration.update().catch(() => {});
       } catch (error) {
         console.warn('Çevrimdışı çalışma başlatılamadı:', error);
