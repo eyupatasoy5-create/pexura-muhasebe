@@ -2613,18 +2613,26 @@ window.editFatura = async (id) => {
 };
 
 document.getElementById('fKaydetBtn').onclick=async ()=>{
-  if(FATURA_SATIRLAR.length===0) return showToast("Kalem yok", "warning");
-  if(!fCari.value) return showToast("Cari seçmelisin.","warning");
+  const btn = document.getElementById('fKaydetBtn');
+  if(btn.disabled) return;
+  if(FATURA_SATIRLAR.length===0) return showToast("En az bir fatura kalemi ekleyin.", "warning");
+  if(!fCari.value) return showToast("Cari seçmelisiniz.", "warning");
 
-  const total = calcFaturaTotals();
   const tipYeni = normalizeTip(fTip.value);
+  const paraBirimi = fPara.value;
+  const araToplam = FATURA_SATIRLAR.reduce((t,s)=>t + toNum(s.satir_tutar),0);
+  const kdvToplam = FATURA_SATIRLAR.reduce((t,s)=>t + (toNum(s.satir_tutar) * toNum(s.kdv_oran) / 100),0);
+  const iskontoToplam = toNum(document.getElementById('fIskonto')?.value || 0);
+  const genelToplam = Math.max(0, araToplam + kdvToplam - iskontoToplam);
+  const vadeTarihi = document.getElementById('fVade')?.value || null;
+  const kur = Math.max(toNum(document.getElementById('fKur')?.value || 1), 0.000001);
 
-  // Programın hiçbir yerinde satış stoku aşmasın.
   let extraAvailableForEdit = {};
   if(EDIT_FATURA_ID){
     const eskiFaturaKontrol = FATURALAR.find(f => f.id == EDIT_FATURA_ID);
     if(normalizeTip(eskiFaturaKontrol?.tip || 'satis') === 'satis'){
-      const { data: eskiKalemKontrol } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', EDIT_FATURA_ID);
+      const { data: eskiKalemKontrol, error: eskiKalemError } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', EDIT_FATURA_ID);
+      if(eskiKalemError) return showToast(eskiKalemError.message, "error");
       (eskiKalemKontrol||[]).forEach(k=>{
         const id = String(k.urun_id);
         extraAvailableForEdit[id] = toNum(extraAvailableForEdit[id]) + toNum(k.miktar);
@@ -2633,111 +2641,61 @@ document.getElementById('fKaydetBtn').onclick=async ()=>{
   }
   if(tipYeni === 'satis' && !validateSaleStock(FATURA_SATIRLAR, extraAvailableForEdit)) return;
 
-  // numara otomatik (madde 6)
-  if(!fNo.value) fNo.value = await getAutoFaturaNo();
+  const actionText = EDIT_FATURA_ID ? "Fatura güncellenecek." : "Fatura oluşturulacak.";
+  if(!confirm(actionText + "\nGenel toplam: " + fmt(genelToplam, paraBirimi) + "\nOnaylıyor musunuz?")) return;
 
-  if (EDIT_FATURA_ID) {
-    const { data: eskiKalemler } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', EDIT_FATURA_ID);
-    const eskiFatura = FATURALAR.find(f => f.id == EDIT_FATURA_ID);
-    const tipEski = normalizeTip(eskiFatura?.tip||"satis");
-
-    for(const k of (eskiKalemler||[])) {
-      const geriAl = (tipEski==="satis") ? +k.miktar : -k.miktar;
-      await applyStockChange(k.urun_id, geriAl, {tur:"duzeltme", kaynak:"fatura", kaynak_id:EDIT_FATURA_ID, aciklama:"Fatura düzenleme geri alım"});
-    }
-
-    await supa.from('fatura_kalemler').delete().eq('fatura_id', EDIT_FATURA_ID);
-
-    await supa.from('faturalar')
-      .update({
-        tip: tipYeni,
-        cari_id: fCari.value,
-        tarih: fTarih.value,
-        numara: fNo.value,
-        genel_toplam: total,
-        para_birimi: fPara.value
-      })
-      .eq('id', EDIT_FATURA_ID);
-
-    const kalemler = FATURA_SATIRLAR.map(s=>({
-      fatura_id: EDIT_FATURA_ID,
-      urun_id: s.urun_id,
-      miktar: s.miktar,
-      birim_fiyat: s.birim_fiyat,
-      kdv_oran: s.kdv_oran,
-      satir_tutar: s.satir_tutar,
-      // snapshots (madde 2)
-      urun_kod_snapshot: s.urun_kod,
-      urun_ad_snapshot: s.urun_ad,
-      alis_fiyat_snapshot: s.alis_snapshot,
-      satis_fiyat_snapshot: s.satis_snapshot,
-      para_birimi_snapshot: s.para_birimi
-    }));
-    await supa.from("fatura_kalemler").insert(kalemler);
-
-    for(const s of FATURA_SATIRLAR){
-      const degisim = (tipYeni==="satis") ? -s.miktar : +s.miktar;
-      await applyStockChange(s.urun_id, degisim, {tur:tipYeni, kaynak:"fatura", kaynak_id:EDIT_FATURA_ID});
-    }
-
-    showToast("Fatura güncellendi.", "success");
-    pushRecentCariId(fCari.value);
-    renderRecentCariler();
-    resetFaturaForm();
-  } else {
-    const { data: inserted, error } = await supa.from("faturalar").insert({
-      user_id: USER.id,
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "KAYDEDİLİYOR...";
+  try{
+    const payload = {
+      id: EDIT_FATURA_ID || null,
       tip: tipYeni,
       cari_id: fCari.value,
       tarih: fTarih.value,
-      numara: fNo.value,
-      genel_toplam: total,
-      para_birimi: fPara.value
-    }).select().single();
-
-    if(error) return showToast(error.message, "error");
-    await logAction('faturalar', 'INSERT', inserted.id);
-
-    // Son kullanılan cariler
+      numara: fNo.value || null,
+      ara_toplam: araToplam,
+      kdv_toplam: kdvToplam,
+      iskonto_toplam: iskontoToplam,
+      genel_toplam: genelToplam,
+      para_birimi: paraBirimi,
+      vade_tarihi: vadeTarihi,
+      kur,
+      odenen_tutar: 0,
+      odeme_durumu: "Odenmedi"
+    };
+    const lines = FATURA_SATIRLAR.map(s=>({
+      urun_id:s.urun_id, miktar:toNum(s.miktar), birim_fiyat:toNum(s.birim_fiyat),
+      kdv_oran:toNum(s.kdv_oran), satir_tutar:toNum(s.satir_tutar),
+      urun_kod:s.urun_kod||"", urun_ad:s.urun_ad||"",
+      alis_snapshot:toNum(s.alis_snapshot), satis_snapshot:toNum(s.satis_snapshot),
+      para_birimi:s.para_birimi||paraBirimi, iskonto_oran:0, iskonto_tutar:0
+    }));
+    const { data: savedId, error } = await supa.rpc('save_invoice_transaction',{p_invoice:payload,p_lines:lines});
+    if(error) throw error;
+    await logAction('faturalar', EDIT_FATURA_ID ? 'UPDATE' : 'INSERT', savedId);
     pushRecentCariId(fCari.value);
     renderRecentCariler();
 
-    const kalemler = FATURA_SATIRLAR.map(s=>({
-      fatura_id: inserted.id,
-      urun_id: s.urun_id,
-      miktar: s.miktar,
-      birim_fiyat: s.birim_fiyat,
-      kdv_oran: s.kdv_oran,
-      satir_tutar: s.satir_tutar,
-      // snapshots (madde 2)
-      urun_kod_snapshot: s.urun_kod,
-      urun_ad_snapshot: s.urun_ad,
-      alis_fiyat_snapshot: s.alis_snapshot,
-      satis_fiyat_snapshot: s.satis_snapshot,
-      para_birimi_snapshot: s.para_birimi
-    }));
-    await supa.from("fatura_kalemler").insert(kalemler);
-
-    for(const s of FATURA_SATIRLAR){
-      const degisim = (tipYeni==="satis") ? -s.miktar : +s.miktar;
-      await applyStockChange(s.urun_id, degisim, {tur:tipYeni, kaynak:"fatura", kaynak_id:inserted.id});
-    }
-
     const selectedCari = CARILER.find(c => c.id === fCari.value);
-    if(fWhatsappCheck.checked && selectedCari && selectedCari.tel){
-      if(confirm("WhatsApp ile PDF göndermek istiyor musunuz?")) {
-        inserted.cariler = { ad: selectedCari.ad, tel: selectedCari.tel };
-        await generateAndSharePDF(inserted, 'whatsapp');
-      } else {
-        showToast("Fatura kaydedildi.", "success");
+    if(!EDIT_FATURA_ID && fWhatsappCheck.checked && selectedCari?.tel && confirm("WhatsApp ile PDF göndermek istiyor musunuz?")){
+      const {data:savedInvoice}=await supa.from('faturalar').select('*').eq('id',savedId).single();
+      if(savedInvoice){
+        savedInvoice.cariler={ad:selectedCari.ad,tel:selectedCari.tel};
+        await generateAndSharePDF(savedInvoice,'whatsapp');
       }
-    } else {
-      showToast("Fatura kaydedildi.", "success");
     }
-
+    showToast(EDIT_FATURA_ID ? "Fatura atomik olarak güncellendi." : "Fatura atomik olarak kaydedildi.", "success");
     resetFaturaForm();
+    await fetchAll();
+    renderAll();
+  }catch(e){
+    console.error(e);
+    showToast(e?.message || "Fatura kaydedilemedi; hiçbir değişiklik uygulanmadı.", "error");
+  }finally{
+    btn.disabled=false;
+    btn.textContent=originalText;
   }
-  await fetchAll(); renderAll();
 };
 
 // filtreli render (madde 10)
