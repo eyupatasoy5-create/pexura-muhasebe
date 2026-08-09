@@ -1926,3 +1926,47 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   body.force-desktop nav,nav{position:sticky!important;top:0!important}
   main{padding-bottom:84px!important}
 }
+
+
+
+/* =========================================================
+   V30: tüm mobil içerikten başlayan tek parmak kaydırma
+========================================================= */
+@media (max-width:768px){
+  .card,.finance-overview-card,.finance-panel,.finance-shortcut,
+  .stock-advanced-card,.stock-move-card,.tab,.grid,
+  .card *:not(input):not(select):not(textarea):not(button):not(a){
+    overscroll-behavior:auto!important;
+  }
+  .card,.finance-overview-card,.finance-panel,.finance-shortcut,
+  .stock-advanced-card,.stock-move-card,.tab,.grid{
+    touch-action:pan-y pinch-zoom!important;
+  }
+  .table-scroll,.table-scroll-compact,
+  #dashSatisKarScroll,.responsive-table-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    height:auto!important;
+    max-height:none!important;
+    overflow-x:auto!important;
+    overflow-y:visible!important;
+    overscroll-behavior:auto!important;
+    touch-action:pan-x pan-y pinch-zoom!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  .card table,.responsive-table,.mini-table{
+    overflow-y:visible!important;
+    overscroll-behavior:auto!important;
+    touch-action:pan-x pan-y pinch-zoom!important;
+  }
+  .card table tbody,.card table tr,.card table td,
+  .responsive-table tbody,.responsive-table tr,.responsive-table td{
+    touch-action:pan-y pinch-zoom!important;
+    overscroll-behavior:auto!important;
+  }
+  .finance-overview-card,.finance-panel,.card{
+    max-height:none!important;
+  }
+  .modal-overlay:not(.hide){touch-action:pan-y!important;overscroll-behavior:contain!important}
+  .modal-overlay:not(.hide) .modal-content{touch-action:pan-y!important;overscroll-behavior:contain!important}
+}
