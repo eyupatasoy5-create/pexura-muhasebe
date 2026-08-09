@@ -3779,6 +3779,20 @@ document.getElementById('uKdv').value = "0";
 /* =========================================================
    MÜŞTERİ PANELİ (SEPET + HAREKET)
 ========================================================= */
+
+window.cpUrunAra = (text='') => {
+  const sel=document.getElementById('cpUrunSelect');
+  if(!sel) return;
+  const q=String(text||'').trim().toLocaleLowerCase('tr-TR');
+  const current=sel.value;
+  const matches=(URUNLER||[]).filter(u=>!q||[u.ad,u.kod,u.birim].some(v=>String(v||'').toLocaleLowerCase('tr-TR').includes(q))).sort((a,b)=>String(a.ad||'').localeCompare(String(b.ad||''),'tr',{numeric:true,sensitivity:'base'}));
+  sel.innerHTML='<option value="">Ürün Seçiniz...</option>'+matches.map(u=>'<option value="'+u.id+'" data-fiyat="'+toNum(u.satis_fiyat)+'" data-stok="'+toNum(u.stok_miktar)+'" data-birim="'+escapeHtml(u.para_birimi||'USD')+'">'+escapeHtml(u.ad||'-')+(u.kod?' — '+escapeHtml(u.kod):'')+'</option>').join('');
+  if(current&&matches.some(u=>String(u.id)===String(current)))sel.value=current;
+  const count=document.getElementById('cpUrunSearchCount');
+  if(count)count.textContent=q?(matches.length+' ürün bulundu'):(matches.length+' ürün listeleniyor');
+  if(q&&matches.length===1){sel.value=matches[0].id;cpUrunSecildi();}
+};
+
 window.openCariPanel = async (id) => {
   ACTIVE_CARI_ID = id;
   const cari = CARILER.find(c => c.id == id);
@@ -3787,10 +3801,9 @@ window.openCariPanel = async (id) => {
   document.getElementById('modalCariPanel').classList.remove('hide');
   document.getElementById('cpBaslik').textContent = cari.ad;
 
-  const urunSelect = document.getElementById('cpUrunSelect');
-  urunSelect.innerHTML =
-    `<option value="">Ürün Seçiniz...</option>` +
-    URUNLER.map(u=>`<option value="${u.id}" data-fiyat="${u.satis_fiyat}" data-stok="${u.stok_miktar}" data-birim="${u.para_birimi}">${u.ad}</option>`).join("");
+  const cpSearch = document.getElementById('cpUrunSearch');
+  if(cpSearch) cpSearch.value = '';
+  cpUrunAra('');
 
   const kasaSelect = document.getElementById('cpKasaSelect');
   kasaSelect.innerHTML = HESAPLAR.map(h=>`<option value="${h.id}">${h.ad} (${h.para_birimi})</option>`).join("");
