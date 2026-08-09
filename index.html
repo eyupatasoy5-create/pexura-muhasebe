@@ -958,8 +958,13 @@
           <option value="iade">İade</option>
         </select>
 
-        <label>Ürün Seç</label>
+        <label>Ürün Ara / Seç</label>
+        <div class="cp-product-search">
+          <input id="cpUrunSearch" type="search" autocomplete="off" placeholder="Ürün adı veya kodu yazın..." oninput="cpUrunAra(this.value)">
+          <button id="cpUrunSearchClear" type="button" onclick="cpUrunAra(''); document.getElementById('cpUrunSearch').value='';">Temizle</button>
+        </div>
         <select id="cpUrunSelect" onchange="cpUrunSecildi()"></select>
+        <small id="cpUrunSearchCount" class="muted">Ürün adı veya koduyla arayabilirsiniz.</small>
 
         <div class="row">
           <div>
@@ -1064,7 +1069,7 @@
 <script src="core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=27"></script>
+<script src="app.js?v=31"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>
