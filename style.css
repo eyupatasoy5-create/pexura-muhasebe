@@ -1970,3 +1970,42 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   .modal-overlay:not(.hide){touch-action:pan-y!important;overscroll-behavior:contain!important}
   .modal-overlay:not(.hide) .modal-content{touch-action:pan-y!important;overscroll-behavior:contain!important}
 }
+
+                  
+
+/* V31: ürün ekranında stok paneli sol boş alanda */
+@media (min-width:1025px){
+  #tab-urunler>.grid{
+    display:grid!important;
+    grid-template-columns:repeat(12,minmax(0,1fr))!important;
+    grid-template-rows:auto auto!important;
+    align-items:start!important;
+  }
+  #tab-urunler #uEkleCard{
+    grid-column:1 / span 4!important;
+    grid-row:1!important;
+  }
+  #tab-urunler #uListeCard{
+    grid-column:5 / span 8!important;
+    grid-row:1 / span 2!important;
+  }
+  #tab-urunler .stock-move-card{
+    grid-column:1 / span 4!important;
+    grid-row:2!important;
+    align-self:start!important;
+  }
+  #tab-urunler .stock-move-form{
+    grid-template-columns:1fr!important;
+  }
+  #tab-urunler .stock-move-form button{
+    width:100%!important;
+  }
+  #tab-urunler .stock-advanced-card summary{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  #tab-urunler .table-scroll{
+    max-height:360px!important;
+    overflow:auto!important;
+  }
+}
