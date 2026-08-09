@@ -5265,3 +5265,7 @@ window.addTahsilatFromDetay = async () => {
 
 // v23 reactive invoice totals
 ['fIskonto','fKur'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>{try{calcFaturaTotals();}catch(_){}}));
+
+
+// v27 güvenli son bağlama
+setTimeout(()=>{ try{ initOperationalControls(); initMultiStockV27(); fillOperationalSelects(); }catch(e){ console.error('v27 stok ekranı başlatılamadı',e); } },0);
