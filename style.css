@@ -1916,3 +1916,13 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
   .section-heading{align-items:stretch!important}
   .fab{bottom:16px!important;right:16px!important}
 }
+
+                  
+
+/* V29: telefonda yalnızca kök sayfa dikey kayar */
+@media (max-width:768px){
+  html{overflow-x:hidden!important;overflow-y:auto!important;height:auto!important}
+  body,body.force-desktop{overflow-x:clip!important;overflow-y:visible!important;height:auto!important;min-height:100vh!important}
+  body.force-desktop nav,nav{position:sticky!important;top:0!important}
+  main{padding-bottom:84px!important}
+}
