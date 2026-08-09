@@ -1,11 +1,11 @@
-const CACHE_NAME = 'pexura-v21-cache-refresh';
+const CACHE_NAME = 'pexura-v22-audit-hardening';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=21',
+  './style.css?v=22',
   './core.js',
-  './app.js?v=21',
-  './pwa.js?v=21',
+  './app.js?v=22',
+  './pwa.js?v=22',
   './pdf-font.js',
   './manifest.json',
   './icon.svg'
