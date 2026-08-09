@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PEXURA Tech">
 
-  <link rel="stylesheet" href="style.css?v=31">
+  <link rel="stylesheet" href="style.css?v=32">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -521,7 +521,8 @@
     <!-- URUNLER -->
     <section id="tab-urunler" class="tab hide">
       <div class="grid">
-        <div class="card" id="uEkleCard" style="grid-column: span 4;">
+        <div class="product-left-column-v32">
+<div class="card" id="uEkleCard" style="grid-column: span 4;">
           <h2>Ürün Ekle</h2>
           <div id="uResimPreviewArea" class="img-preview-box hide">
               <img id="uResimPreview" src="" alt="Onizleme">
@@ -554,46 +555,7 @@
           <button class="primary" style="width:100%; margin-top:10px;" id="uKaydetBtn">Kaydet</button>
         </div>
 
-        <div class="card" id="uListeCard" style="grid-column: span 8;">
-          <h2>Ürünler</h2>
-          <div class="urun-toolbar">
-            <div class="urun-search-wrap">
-              <input id="urunSearchInput" placeholder="Ürün adı, kodu veya birimi ara..." />
-              <button id="urunSearchClear" type="button">Temizle</button>
-            </div>
-            <select id="urunSortSelect">
-              <option value="ad-asc">İsme Göre A-Z</option>
-              <option value="ad-desc">İsme Göre Z-A</option>
-              <option value="kod-asc">Koda Göre Artan</option>
-              <option value="kod-desc">Koda Göre Azalan</option>
-              <option value="stok-desc">Stok Çoktan Aza</option>
-              <option value="stok-asc">Stok Azdan Çoğa</option>
-            </select>
-            <div class="urun-title-settings-wrap">
-              <button id="urunTitleSettingsBtn" type="button" class="urun-title-settings-btn" title="Ürün adı yazı ayarları">✏️ Yazı</button>
-              <div id="urunTitleSettingsPanel" class="urun-title-settings-panel hide">
-                <label>Renk <input id="urunTitleColor" type="color" value="#f8fafc"></label>
-                <label>Boyut
-                  <select id="urunTitleSize">
-                    <option value="16">16</option>
-                    <option value="18" selected>18</option>
-                    <option value="20">20</option>
-                    <option value="22">22</option>
-                    <option value="24">24</option>
-                    <option value="28">28</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-            <span id="urunSonucSayisi" class="urun-result-count"></span>
-          </div>
-          <table class="responsive-table urun-table">
-            <thead><tr><th>Resim</th><th>Kod</th><th>Ürün / Stok / Fiyat / İşlem</th><th></th></tr></thead>
-            <tbody id="uListe"></tbody>
-          </table>
-        </div>
-
-        <div class="card stock-move-card" style="grid-column: span 12;">
+<div class="card stock-move-card" style="grid-column: span 12;">
           <div class="section-heading">
             <div><h2>Stok Giriş / Çıkış</h2><p class="muted">Fatura dışındaki mal kabul, fire, numune ve sayım farklarını kaydedin.</p></div>
             <span class="tag">Negatif stok kapalı</span>
@@ -650,6 +612,46 @@
           <div id="stokIslemOzet" class="filter-summary"></div>
           <div class="filter-bar"><input id="stokHareketAra" placeholder="Ürün, neden veya açıklama ara..."></div>
           <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>Ürün</th><th>İşlem</th><th>Değişim</th><th>Sonuç</th><th>Açıklama</th></tr></thead><tbody id="stokHareketListe"></tbody></table></div>
+        </div>
+</div>
+
+<div class="card" id="uListeCard" style="grid-column: span 8;">
+          <h2>Ürünler</h2>
+          <div class="urun-toolbar">
+            <div class="urun-search-wrap">
+              <input id="urunSearchInput" placeholder="Ürün adı, kodu veya birimi ara..." />
+              <button id="urunSearchClear" type="button">Temizle</button>
+            </div>
+            <select id="urunSortSelect">
+              <option value="ad-asc">İsme Göre A-Z</option>
+              <option value="ad-desc">İsme Göre Z-A</option>
+              <option value="kod-asc">Koda Göre Artan</option>
+              <option value="kod-desc">Koda Göre Azalan</option>
+              <option value="stok-desc">Stok Çoktan Aza</option>
+              <option value="stok-asc">Stok Azdan Çoğa</option>
+            </select>
+            <div class="urun-title-settings-wrap">
+              <button id="urunTitleSettingsBtn" type="button" class="urun-title-settings-btn" title="Ürün adı yazı ayarları">✏️ Yazı</button>
+              <div id="urunTitleSettingsPanel" class="urun-title-settings-panel hide">
+                <label>Renk <input id="urunTitleColor" type="color" value="#f8fafc"></label>
+                <label>Boyut
+                  <select id="urunTitleSize">
+                    <option value="16">16</option>
+                    <option value="18" selected>18</option>
+                    <option value="20">20</option>
+                    <option value="22">22</option>
+                    <option value="24">24</option>
+                    <option value="28">28</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <span id="urunSonucSayisi" class="urun-result-count"></span>
+          </div>
+          <table class="responsive-table urun-table">
+            <thead><tr><th>Resim</th><th>Kod</th><th>Ürün / Stok / Fiyat / İşlem</th><th></th></tr></thead>
+            <tbody id="uListe"></tbody>
+          </table>
         </div>
       </div>
     </section>
