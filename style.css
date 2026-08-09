@@ -2009,3 +2009,45 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
     overflow:auto!important;
   }
 }
+
+                  
+
+/* V32: Ürün Ekle + Stok aynı sol sütunda */
+#tab-urunler .product-left-column-v32{
+  display:flex;
+  min-width:0;
+  flex-direction:column;
+  gap:12px;
+}
+#tab-urunler .product-left-column-v32>#uEkleCard,
+#tab-urunler .product-left-column-v32>.stock-move-card{
+  width:100%!important;
+  min-width:0!important;
+}
+@media(min-width:1025px){
+  #tab-urunler>.grid{
+    display:grid!important;
+    grid-template-columns:repeat(12,minmax(0,1fr))!important;
+    grid-template-rows:auto!important;
+    align-items:start!important;
+  }
+  #tab-urunler .product-left-column-v32{
+    grid-column:1 / span 4!important;
+    grid-row:1!important;
+    gap:24px;
+  }
+  #tab-urunler #uListeCard{
+    grid-column:5 / span 8!important;
+    grid-row:1!important;
+    align-self:start!important;
+  }
+  #tab-urunler .product-left-column-v32>#uEkleCard,
+  #tab-urunler .product-left-column-v32>.stock-move-card{
+    grid-column:auto!important;
+    grid-row:auto!important;
+    align-self:auto!important;
+  }
+}
+@media(max-width:1024px){
+  #tab-urunler .product-left-column-v32{width:100%!important}
+}
