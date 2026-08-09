@@ -2,7 +2,8 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="referrer" content="strict-origin-when-cross-origin"/>
   <title>PEXURA Tech</title>
   
   <link rel="manifest" href="manifest.json">
@@ -11,7 +12,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PEXURA Tech">
 
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -21,15 +22,15 @@
   <div class="header-left">
       <h1 onclick="document.querySelector('button[data-tab=\'dash\']').click()" style="cursor: pointer;">PEXURA Tech</h1>
       <div class="view-mode-switch">
-          <button onclick="setAppView('pc')" title="PC Görünümü">💻</button>
-          <button onclick="setAppView('mobile')" title="Mobil Görünümü">📱</button>
+          <button onclick="setAppView('pc')" title="PC Görünümü" aria-label="PC görünümüne geç">💻</button>
+          <button onclick="setAppView('mobile')" title="Mobil Görünümü" aria-label="Mobil görünüme geç">📱</button>
       </div>
   </div>
 
   <div class="header-center">
     <div class="search-container">
         <input type="text" id="searchInput" placeholder="Müşteri, Tel, Mail veya Ürün ara..." onkeypress="if(event.key==='Enter') globalSearch()">
-        <button onclick="globalSearch()">🔍</button>
+        <button onclick="globalSearch()" aria-label="Ara" title="Ara">🔍</button>
     </div>
   </div>
 
@@ -46,8 +47,8 @@
 
 <div class="authbar">
   <div id="authLoggedOut">
-    <input id="authEmail" placeholder="E-posta"/>
-    <input id="authPass" type="password" placeholder="Şifre"/>
+    <input id="authEmail" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="E-posta"/>
+    <input id="authPass" type="password" autocomplete="current-password" minlength="8" placeholder="Şifre"/>
     <button class="primary" id="btnRegister">Kayıt Ol</button>
     <button id="btnLogin">Giriş</button>
     <button id="btnForgotPass" type="button">Şifremi Unuttum</button>
@@ -74,8 +75,8 @@
         <strong id="changeSecurityQuestion">Gizli soru</strong>
         <input id="changeSecurityAnswer" placeholder="Gizli soru cevabı"/>
       </div>
-      <input id="newAuthPass" type="password" placeholder="Yeni şifre"/>
-      <input id="newAuthPass2" type="password" placeholder="Yeni şifre tekrar"/>
+      <input id="newAuthPass" type="password" autocomplete="new-password" minlength="8" placeholder="Yeni şifre"/>
+      <input id="newAuthPass2" type="password" autocomplete="new-password" minlength="8" placeholder="Yeni şifre tekrar"/>
       <button class="primary" id="btnChangePass" type="button">Kaydet</button>
       <button id="btnCancelChangePass" type="button">Vazgeç</button>
     </div>
@@ -422,11 +423,11 @@
           <label>Ürün Seçimi</label>
           <select id="kUrun"></select>
           <div class="row">
-            <input id="kMiktar" type="number" placeholder="Miktar" inputmode="numeric"/>
-            <input id="kFiyat" type="number" placeholder="Fiyat" inputmode="decimal"/>
+            <input id="kMiktar" type="number" min="0.001" step="0.001" placeholder="Miktar" inputmode="decimal"/>
+            <input id="kFiyat" type="number" min="0" step="0.01" placeholder="Fiyat" inputmode="decimal"/>
           </div>
           <div class="row">
-            <input id="kKdv" type="number" value="18" placeholder="KDV %"/>
+            <input id="kKdv" type="number" min="0" max="100" step="0.01" value="18" placeholder="KDV %"/>
             <button id="kalemEkleBtn">Ekle</button>
           </div>
 
@@ -469,12 +470,12 @@
           <h2>Cari Ekle</h2>
           <select id="cariTur"><option value="musteri">Müşteri</option><option value="tedarikci">Tedarikçi</option></select>
           <input id="cariAd" placeholder="Firma / Ad Soyad"/>
-          <input id="cariTel" placeholder="Telefon"/>
-          <input id="cariMail" placeholder="E-posta"/>
+          <input id="cariTel" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="Telefon"/>
+          <input id="cariMail" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="E-posta"/>
           <textarea id="cariAdres" placeholder="Adres"></textarea>
           <div class="row">
-            <input id="cariABorc" type="number" placeholder="Açılış Borç"/>
-            <input id="cariAAlacak" type="number" placeholder="Açılış Alacak"/>
+            <input id="cariABorc" type="number" min="0" step="0.01" placeholder="Açılış Borç"/>
+            <input id="cariAAlacak" type="number" min="0" step="0.01" placeholder="Açılış Alacak"/>
           </div>
           <button class="primary" style="width:100%; margin-top:10px;" id="cariEkleBtn">Kaydet</button>
         </div>
@@ -518,14 +519,14 @@
             </select>
           </div>
           <div class="row">
-            <input id="uAlis" type="number" placeholder="Alış Fiyat"/>
-            <input id="uSatis" type="number" placeholder="Satış Fiyat"/>
+            <input id="uAlis" type="number" min="0" step="0.01" placeholder="Alış Fiyat"/>
+            <input id="uSatis" type="number" min="0" step="0.01" placeholder="Satış Fiyat"/>
           </div>
           <div class="row">
-            <input id="uMin" type="number" placeholder="Min Stok"/>
-            <input id="uStokManuel" type="number" placeholder="Başlangıç Stok"/>
+            <input id="uMin" type="number" min="0" step="0.001" placeholder="Min Stok"/>
+            <input id="uStokManuel" type="number" min="0" step="0.001" placeholder="Başlangıç Stok"/>
           </div>
-          <input id="uKdv" type="number" value="0" placeholder="KDV"/>
+          <input id="uKdv" type="number" min="0" max="100" step="0.01" value="0" placeholder="KDV"/>
           <button class="primary" style="width:100%; margin-top:10px;" id="uKaydetBtn">Kaydet</button>
         </div>
 
@@ -590,7 +591,7 @@
           <h2>İşlem Gir</h2>
           <select id="kHesap"></select>
           <select id="kTur"><option value="tahsilat">Tahsilat</option><option value="odeme">Ödeme</option></select>
-          <input id="kTutar" type="number" placeholder="Tutar"/>
+          <input id="kTutar" type="number" min="0.01" step="0.01" placeholder="Tutar"/>
           <div class="row">
             <select id="kOdemeTipi">
               <option value="nakit">Nakit / Havale</option>
@@ -627,7 +628,7 @@
            <h2>Gelir/Gider Ekle</h2>
            <select id="ggTur"><option value="gider">Gider</option><option value="gelir">Gelir</option></select>
            <input id="ggKat" placeholder="Kategori"/>
-           <input id="ggTutar" type="number" placeholder="Tutar"/>
+           <input id="ggTutar" type="number" min="0.01" step="0.01" placeholder="Tutar"/>
            <input id="ggAc" placeholder="Açıklama"/>
            <input id="ggTarih" type="datetime-local"/>
            <button class="primary" style="margin-top:10px" id="ggEkleBtn">Ekle</button>
@@ -805,7 +806,7 @@
 <!-- EKSTRE MODAL -->
 <div id="modalEkstre" class="modal-overlay hide">
   <div class="modal-content">
-    <button class="modal-close" onclick="closeEkstre()">&times;</button>
+    <button class="modal-close" type="button" aria-label="Pencereyi kapat" onclick="closeEkstre()">&times;</button>
     <h2 id="ekstreBaslik">Ekstre</h2>
     <div class="ekstre-summary">
         <div class="ekstre-box"><h4>TOPLAM BORÇ (SATIŞ)</h4><span id="ekstreAlim" style="color:#60a5fa">0 $</span></div>
@@ -822,7 +823,7 @@
 <!-- SEARCH MODAL -->
 <div id="modalSearch" class="modal-overlay hide">
   <div class="modal-content">
-    <button class="modal-close" onclick="document.getElementById('modalSearch').classList.add('hide')">&times;</button>
+    <button class="modal-close" type="button" aria-label="Pencereyi kapat" onclick="document.getElementById('modalSearch').classList.add('hide')">&times;</button>
     <h2 style="margin-top:0;">🔎 Arama Sonuçları</h2>
     <div class="search-section-title" style="color:#94a3b8; margin-top:15px; border-bottom:1px solid #334155;">👥 Müşteriler</div>
     <table><thead><tr><th>Ad Soyad</th><th>Telefon</th><th>Adres</th><th>Bakiye</th><th>İşlem</th></tr></thead><tbody id="searchResultCari"></tbody></table>
@@ -834,7 +835,7 @@
 <!-- TIME MACHINE MODAL -->
 <div id="modalTimeMachine" class="modal-overlay hide">
   <div class="modal-content" style="max-width: 500px; text-align:center;">
-    <button class="modal-close" onclick="document.getElementById('modalTimeMachine').classList.add('hide')">&times;</button>
+    <button class="modal-close" type="button" aria-label="Pencereyi kapat" onclick="document.getElementById('modalTimeMachine').classList.add('hide')">&times;</button>
     <h2 style="color:#8b5cf6; margin-top:0;">⏪ Zaman Makinesi</h2>
     <p style="color:#94a3b8; margin-bottom:20px;">Seçilen tarihten sonraki işlemler geri alınacaktır.</p>
     <input type="datetime-local" id="rollbackTime" style="width:100%; padding:15px; font-size:16px; margin-bottom:20px;">
@@ -845,7 +846,7 @@
 <!-- YENİ MÜŞTERİ PANELİ (SEPETLİ + TÜM HAREKETLER) -->
 <div id="modalCariPanel" class="modal-overlay hide">
   <div class="modal-content" style="max-width: 1100px;">
-    <button class="modal-close" onclick="document.getElementById('modalCariPanel').classList.add('hide')">&times;</button>
+    <button class="modal-close" type="button" aria-label="Pencereyi kapat" onclick="document.getElementById('modalCariPanel').classList.add('hide')">&times;</button>
 
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:15px; margin-bottom:20px;">
         <h2 id="cpBaslik" style="margin:0; color:#60a5fa; font-size:24px;">Müşteri Adı</h2>
@@ -972,8 +973,8 @@
 <script src="core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=21"></script>
-<script src="pwa.js?v=21"></script>
+<script src="app.js?v=22"></script>
+<script src="pwa.js?v=22"></script>
 
 </body>
 </html>
