@@ -2722,6 +2722,14 @@ function renderFaturalar(){
     });
   }
 
+  const totalInvoices=list.length,totalPages=Math.max(1,Math.ceil(totalInvoices/FATURA_PAGE_SIZE));
+  FATURA_PAGE=Math.min(Math.max(1,FATURA_PAGE),totalPages);
+  const pageStart=(FATURA_PAGE-1)*FATURA_PAGE_SIZE;list=list.slice(pageStart,pageStart+FATURA_PAGE_SIZE);
+  const pageText=document.getElementById('faturaSayfa'),pageSummary=document.getElementById('faturaSayfaOzet'),prev=document.getElementById('faturaOnceki'),next=document.getElementById('faturaSonraki');
+  if(pageText)pageText.textContent='Sayfa '+FATURA_PAGE+' / '+totalPages;
+  if(pageSummary)pageSummary.textContent=totalInvoices+' fatura bulundu; sayfada '+list.length+' kayıt gösteriliyor.';
+  if(prev)prev.disabled=FATURA_PAGE<=1;if(next)next.disabled=FATURA_PAGE>=totalPages;
+
   list.forEach(f=>{
     const tr=document.createElement("tr");
     const cariAd = f.cariler ? f.cariler.ad : 'Silinmiş Cari';
@@ -3123,6 +3131,66 @@ window.clearGGFilters = () => {
   renderGG();
 };
 
+
+/* V26: stok hareketi, kasa virmanı ve fatura sayfalama */
+let FATURA_PAGE = 1;
+const FATURA_PAGE_SIZE = 40;
+
+function fillOperationalSelects(){
+  const stockSel=document.getElementById('stokIslemUrun');
+  if(stockSel){
+    const current=stockSel.value;
+    stockSel.innerHTML='<option value="">Ürün seçin</option>'+URUNLER.slice().sort((a,b)=>String(a.ad||'').localeCompare(String(b.ad||''),'tr')).map(u=>'<option value="'+u.id+'">'+escapeHtml(u.ad||'-')+' — stok: '+toNum(u.stok_miktar)+'</option>').join('');
+    if(URUNLER.some(u=>String(u.id)===String(current))) stockSel.value=current;
+  }
+  const from=document.getElementById('virmanKaynak'),to=document.getElementById('virmanHedef');
+  if(from&&to){
+    const oldFrom=from.value,oldTo=to.value;
+    from.innerHTML='<option value="">Kaynak hesap</option>'+HESAPLAR.map(h=>'<option value="'+h.id+'">'+escapeHtml(h.ad)+' ('+h.para_birimi+')</option>').join('');
+    if(HESAPLAR.some(h=>String(h.id)===String(oldFrom))) from.value=oldFrom;
+    const source=HESAPLAR.find(h=>String(h.id)===String(from.value));
+    const targets=source?HESAPLAR.filter(h=>h.id!==source.id&&h.para_birimi===source.para_birimi):HESAPLAR;
+    to.innerHTML='<option value="">Hedef hesap</option>'+targets.map(h=>'<option value="'+h.id+'">'+escapeHtml(h.ad)+' ('+h.para_birimi+')</option>').join('');
+    if(targets.some(h=>String(h.id)===String(oldTo))) to.value=oldTo;
+  }
+}
+function renderStokHareketleri(){
+  const body=document.getElementById('stokHareketListe'); if(!body)return;
+  const q=(document.getElementById('stokHareketAra')?.value||'').trim().toLocaleLowerCase('tr');
+  const products=new Map(URUNLER.map(u=>[String(u.id),u]));
+  const cursor=new Map(URUNLER.map(u=>[String(u.id),toNum(u.stok_miktar)]));
+  const rows=(STOK_LOGS||[]).slice().sort(compareByNewest).map(log=>{const id=String(log.urun_id||''),after=cursor.get(id);cursor.set(id,toNum(after)-toNum(log.miktar_degisim));return{log,urun:products.get(id),after};}).filter(x=>!q||((x.urun?.ad||'')+' '+(x.log.tur||'')+' '+(x.log.aciklama||'')+' '+(x.log.kaynak||'')).toLocaleLowerCase('tr').includes(q)).slice(0,100);
+  const labels={giris:'Giriş',cikis:'Çıkış',sayim:'Sayım',fatura_satis:'Fatura Satış',fatura_alis:'Fatura Alış',fatura_iptal:'Fatura İptal'};
+  body.innerHTML=rows.length?rows.map(x=>{const d=toNum(x.log.miktar_degisim);return '<tr><td data-label="Tarih">'+formatTRDateTime(x.log.tarih||x.log.created_at)+'</td><td data-label="Ürün">'+escapeHtml(x.urun?.ad||'Silinmiş ürün')+'</td><td data-label="İşlem"><span class="tag">'+(labels[x.log.tur]||escapeHtml(x.log.tur||'-'))+'</span></td><td data-label="Değişim" style="color:'+(d>=0?'#4ade80':'#f87171')+';font-weight:700">'+(d>=0?'+':'')+d+'</td><td data-label="İşlem Sonrası">'+(Number.isFinite(x.after)?x.after:'-')+'</td><td data-label="Açıklama">'+escapeHtml(x.log.aciklama||x.log.kaynak||'-')+'</td></tr>';}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Stok hareketi bulunamadı.</td></tr>';
+  const sum=document.getElementById('stokIslemOzet');if(sum)sum.textContent='Son '+rows.length+' hareket gösteriliyor. Fatura hareketleri otomatik, manuel hareketler neden bilgisiyle kaydedilir.';
+  applyResponsiveTableLabels();
+}
+function initOperationalControls(){
+  const type=document.getElementById('stokIslemTur'),qty=document.getElementById('stokIslemMiktar');
+  if(type&&!type._bound){type._bound=true;type.onchange=()=>{if(qty)qty.placeholder=type.value==='sayim'?'Sayımda bulunan toplam stok':'Miktar';};}
+  const search=document.getElementById('stokHareketAra');if(search&&!search._bound){search._bound=true;search.oninput=renderStokHareketleri;}
+  const save=document.getElementById('stokIslemKaydet');
+  if(save&&!save._bound){save._bound=true;save.onclick=async()=>{
+    const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim();
+    if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim'))return showToast('Geçerli bir miktar girin.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
+    const urun=URUNLER.find(u=>String(u.id)===String(urunId)),action=mode==='sayim'?'stok '+quantity+' olarak düzeltilecek':quantity+' '+(mode==='giris'?'giriş':'çıkış')+' yapılacak';
+    if(!confirm((urun?.ad||'Ürün')+' için '+action+'. Onaylıyor musunuz?'))return;
+    save.disabled=true;try{const res=await supa.rpc('adjust_stock_transaction',{p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
+  };}
+  const from=document.getElementById('virmanKaynak');if(from&&!from._bound){from._bound=true;from.onchange=fillOperationalSelects;}
+  const transfer=document.getElementById('virmanKaydet');
+  if(transfer&&!transfer._bound){transfer._bound=true;transfer.onclick=async()=>{
+    const fromId=document.getElementById('virmanKaynak')?.value,toId=document.getElementById('virmanHedef')?.value,amount=toNum(document.getElementById('virmanTutar')?.value),desc=(document.getElementById('virmanAciklama')?.value||'').trim();
+    if(!fromId||!toId||fromId===toId)return showToast('Farklı kaynak ve hedef hesap seçin.','warning');if(amount<=0)return showToast('Virman tutarı sıfırdan büyük olmalı.','warning');
+    const source=HESAPLAR.find(h=>String(h.id)===String(fromId)),target=HESAPLAR.find(h=>String(h.id)===String(toId));if(source?.para_birimi!==target?.para_birimi)return showToast('Virman hesapları aynı para biriminde olmalı.','warning');
+    if(!confirm(source.ad+' hesabından '+target.ad+' hesabına '+fmt(amount,source.para_birimi)+' aktarılacak. Onaylıyor musunuz?'))return;
+    transfer.disabled=true;try{const res=await supa.rpc('cash_transfer_transaction',{p_from:fromId,p_to:toId,p_amount:amount,p_date:nowLocalDTWithSeconds(),p_description:desc||null});if(res.error)throw res.error;await fetchHareketler();renderHareketler();renderDash();document.getElementById('virmanTutar').value='';document.getElementById('virmanAciklama').value='';showToast('Virman iki taraflı ve atomik olarak kaydedildi.','success');}catch(e){showToast(e?.message||'Virman kaydedilemedi.','error');}finally{transfer.disabled=false;}
+  };}
+  ['fFilterSearch','fFilterCari','fFilterTip','fFilterStart','fFilterEnd'].forEach(id=>{const el=document.getElementById(id);if(el&&!el._bound){el._bound=true;el.addEventListener(id==='fFilterSearch'?'input':'change',()=>{FATURA_PAGE=1;renderFaturalar();});}});
+  const clear=document.getElementById('fFilterClear');if(clear&&!clear._bound){clear._bound=true;clear.onclick=()=>{['fFilterSearch','fFilterCari','fFilterTip','fFilterStart','fFilterEnd'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});FATURA_PAGE=1;renderFaturalar();};}
+  const prev=document.getElementById('faturaOnceki');if(prev&&!prev._bound){prev._bound=true;prev.onclick=()=>{if(FATURA_PAGE>1){FATURA_PAGE--;renderFaturalar();}};}
+  const next=document.getElementById('faturaSonraki');if(next&&!next._bound){next._bound=true;next.onclick=()=>{FATURA_PAGE++;renderFaturalar();};}
+}
 /* =========================================================
    SELECTS & RENDER ALL
 ========================================================= */
@@ -3198,6 +3266,8 @@ function fillSelects(){
 
   // Fatura: hızlı cari arama + son kullanılanlar
   initFaturaCariQuickSearch();
+  fillOperationalSelects();
+  initOperationalControls();
 }
 
 function renderAll(){
@@ -3211,7 +3281,7 @@ function renderAll(){
 
 function renderTab(tab){
   if(tab === 'cariler') renderCariler();
-  if(tab === 'urunler') renderUrunler();
+  if(tab === 'urunler'){ renderUrunler(); renderStokHareketleri(); }
   if(tab === 'faturalar') renderFaturalar();
   if(tab === 'kasa'){ renderHesaplar(); renderHareketler(); }
   if(tab === 'gelirgider') renderGG();
