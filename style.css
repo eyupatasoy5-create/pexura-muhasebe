@@ -1797,3 +1797,122 @@ body.force-mobile main{ padding-bottom: calc(96px + var(--safe-b)) !important; }
 #dashFinancialOverview.finance-collapsed .finance-overview-head p{display:none}
 #dashFinancialOverview.finance-collapsed .finance-eyebrow{margin-bottom:3px}
 @media(max-width:760px){.dashboard-finance-head-actions{width:100%;align-items:stretch;flex-direction:column}.dashboard-finance-toggle{width:100%}}
+
+
+
+/* =========================================================
+   V28 MOBILE TOUCH / SINGLE SCROLL FIX
+========================================================= */
+@media (max-width: 768px){
+  html,body{
+    width:100%!important;
+    min-width:0!important;
+    height:auto!important;
+    min-height:100%!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+    touch-action:pan-y pinch-zoom!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  body.force-desktop{
+    width:100%!important;
+    min-width:0!important;
+    transform:none!important;
+    zoom:1!important;
+  }
+  body.force-desktop .wrap,.wrap{
+    display:block!important;
+    width:100%!important;
+    min-width:0!important;
+    grid-template-columns:1fr!important;
+  }
+  body.force-desktop header,header{
+    position:relative!important;
+    height:auto!important;
+    min-height:0!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+    padding:10px 12px!important;
+  }
+  .header-left,.header-center,.header-right,.action-group{
+    width:100%!important;
+    min-width:0!important;
+  }
+  .header-left{justify-content:space-between!important;margin:0!important}
+  .header-right,.action-group{justify-content:flex-start!important;overflow-x:auto!important;flex-wrap:nowrap!important;padding-bottom:3px}
+  .header-right>*{flex:0 0 auto!important}
+  body.force-desktop nav,nav{
+    position:sticky!important;
+    top:0!important;
+    z-index:60!important;
+    display:flex!important;
+    width:100%!important;
+    height:auto!important;
+    max-height:none!important;
+    min-height:60px!important;
+    flex-direction:row!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    border-right:0!important;
+    border-bottom:1px solid var(--border)!important;
+    padding:4px 6px!important;
+    scrollbar-width:none;
+    touch-action:pan-x pan-y!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  nav::-webkit-scrollbar{display:none}
+  body.force-desktop nav button.navbtn,nav button.navbtn{
+    flex:0 0 76px!important;
+    width:76px!important;
+    min-width:76px!important;
+    min-height:54px!important;
+    padding:7px 4px!important;
+    border-right:0!important;
+    border-bottom:3px solid transparent!important;
+    justify-content:center!important;
+  }
+  nav button.navbtn.active{border-bottom-color:var(--primary)!important}
+  body.force-desktop main,main{
+    width:100%!important;
+    min-width:0!important;
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+    padding:12px!important;
+    touch-action:pan-y!important;
+  }
+  body.force-desktop .grid,.grid{
+    display:flex!important;
+    width:100%!important;
+    min-width:0!important;
+    flex-direction:column!important;
+    gap:12px!important;
+  }
+  .card,.tab,.finance-panel,.finance-overview{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  input,select,textarea,button{
+    min-height:44px;
+    font-size:16px!important;
+    touch-action:manipulation!important;
+  }
+  button{padding:10px 12px}
+  .row{width:100%!important;min-width:0!important;gap:8px!important}
+  .row>*{width:100%!important;min-width:0!important}
+  .table-scroll,.card,.stock-advanced-card,.modal-content{
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  .table-scroll{max-width:100%!important;overflow-x:auto!important;overflow-y:visible!important;touch-action:pan-x pan-y!important}
+  .responsive-table{max-width:100%!important}
+  .modal-overlay{align-items:flex-start!important;padding:8px!important;overflow-y:auto!important;touch-action:pan-y!important}
+  .modal-content{max-height:none!important;min-height:0!important;margin:8px 0!important;padding:14px!important;overflow:visible!important}
+  #toast-container{left:10px!important;right:10px!important;bottom:10px!important;width:auto!important;pointer-events:none!important}
+  .toast{width:100%!important;min-width:0!important;pointer-events:auto!important}
+  .stock-move-form,.stock-meta-grid,.multi-stock-row,.assembly-row,.invoice-filters{grid-template-columns:1fr!important}
+  .section-heading{align-items:stretch!important}
+  .fab{bottom:16px!important;right:16px!important}
+}
