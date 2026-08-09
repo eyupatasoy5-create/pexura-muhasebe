@@ -614,6 +614,39 @@
             <input id="stokIslemAciklama" maxlength="250" placeholder="Açıklama / belge no">
             <button id="stokIslemKaydet" type="button" class="primary">Stok İşlemini Kaydet</button>
           </div>
+          
+          <details class="stock-advanced-card">
+            <summary><strong>Birden Fazla Ürüne Toplu Stok İşlemi</strong><span class="muted"> Aynı işlemde çoklu giriş, çıkış veya sayım</span></summary>
+            <div class="stock-advanced-body">
+              <div id="topluStokSatirlar" class="multi-stock-lines"></div>
+              <button id="topluStokSatirEkle" type="button">+ Ürün Satırı Ekle</button>
+              <div class="stock-meta-grid">
+                <select id="topluStokNeden"><option value="">Neden seçin</option><option>Mal kabul</option><option>Fire / hasar</option><option>Toplu sayım</option><option>Depo düzeltmesi</option><option>Diğer</option></select>
+                <input id="topluStokAciklama" maxlength="250" placeholder="Ortak açıklama / belge no">
+                <button id="topluStokKaydet" type="button" class="primary">Tüm Stok İşlemlerini Kaydet</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="stock-advanced-card">
+            <summary><strong>Ürün Birleştirme / Üretim</strong><span class="muted"> 2 veya daha fazla ürünü tüketip yeni ürün stoğu oluştur</span></summary>
+            <div class="stock-advanced-body">
+              <div class="stock-meta-grid">
+                <select id="birlesimCiktiUrun"><option value="">Ortaya çıkan ürünü seçin</option></select>
+                <input id="birlesimCiktiMiktar" type="number" min="0.001" step="0.001" placeholder="Üretilecek miktar">
+                <input id="birlesimNeden" maxlength="120" placeholder="Birleştirme nedeni / reçete adı">
+              </div>
+              <h3>Bileşenler</h3>
+              <div id="birlesimBilesenler" class="multi-stock-lines"></div>
+              <button id="birlesimBilesenEkle" type="button">+ Bileşen Ekle</button>
+              <div class="stock-meta-grid">
+                <input id="birlesimAciklama" maxlength="250" placeholder="Açıklama / üretim parti no">
+                <button id="birlesimKaydet" type="button" class="success">Birleştirmeyi Onayla</button>
+              </div>
+              <small class="muted">Örnek: 1 kılıf + 1 ambalaj tüket, 1 paketli ürün üret. Miktarlar bu işlemde tüketilecek toplam miktardır.</small>
+            </div>
+          </details>
+
           <div id="stokIslemOzet" class="filter-summary"></div>
           <div class="filter-bar"><input id="stokHareketAra" placeholder="Ürün, neden veya açıklama ara..."></div>
           <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>Ürün</th><th>İşlem</th><th>Değişim</th><th>Sonuç</th><th>Açıklama</th></tr></thead><tbody id="stokHareketListe"></tbody></table></div>
@@ -1031,8 +1064,8 @@
 <script src="core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=26"></script>
-<script src="pwa.js?v=26"></script>
+<script src="app.js?v=27"></script>
+<script src="pwa.js?v=27"></script>
 
 </body>
 </html>
