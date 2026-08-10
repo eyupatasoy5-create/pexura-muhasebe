@@ -491,7 +491,7 @@ function applyRolePermissions(){
       const btn = document.querySelector(`button[data-tab="${id}"]`);
       if(btn) btn.classList.add('hide');
     });
-    document.querySelector(`button[data-tab="urunler"]`).click();
+    document.querySelector(`button[data-tab="hesaplayici"]`)?.click();
     document.getElementById('uEkleCard').classList.add('hide');
   } else {
     adminTabs.forEach(id => {
@@ -499,7 +499,7 @@ function applyRolePermissions(){
       if(btn) btn.classList.remove('hide');
     });
     document.getElementById('uEkleCard').classList.remove('hide');
-    document.querySelector(`button[data-tab="dash"]`).click();
+    document.querySelector(`button[data-tab="hesaplayici"]`)?.click();
   }
 }
 document.getElementById('btnRegister').onclick=register;
