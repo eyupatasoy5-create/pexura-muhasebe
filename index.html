@@ -16,6 +16,26 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    #tab-hesaplayici { padding: 0; }
+    #calculatorFrame {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 110px);
+      min-height: 720px;
+      border: 0;
+      border-radius: 16px;
+      background: #0b0d12;
+    }
+    @media (max-width: 768px) {
+      #calculatorFrame {
+        height: calc(100vh - 82px);
+        min-height: 760px;
+        border-radius: 10px;
+      }
+    }
+  </style>
 </head>
 <body>
 <header>
@@ -94,7 +114,8 @@
 
 <div class="wrap">
   <nav>
-    <button class="navbtn active" data-tab="dash">📊 Dashboard</button>
+    <button class="navbtn active" data-tab="hesaplayici">🧮 Hesaplayıcı</button>
+    <button class="navbtn" data-tab="dash">📊 Dashboard</button>
     <button class="navbtn" data-tab="finans">💼 Finans</button>
     <button class="navbtn" data-tab="faturalar">🧾 Fatura Kes</button>
     <button class="navbtn" data-tab="cariler">👥 Müşteriler</button>
@@ -107,8 +128,13 @@
   </nav>
 
   <main>
+    <!-- HESAPLAYICI / MÜŞTERİ EKRANI -->
+    <section id="tab-hesaplayici" class="tab">
+      <iframe id="calculatorFrame" src="calculator.html?v=1" title="PEXURA Dolar TL Hesaplayıcı" allow="clipboard-write"></iframe>
+    </section>
+
     <!-- DASHBOARD -->
-    <section id="tab-dash" class="tab">
+    <section id="tab-dash" class="tab hide">
       <div class="grid">
         <div class="card finance-overview-card" id="dashFinancialOverview">
           <div class="finance-overview-head">
@@ -1071,7 +1097,7 @@
 <script src="core.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=31"></script>
+<script src="app.js?v=33"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>
