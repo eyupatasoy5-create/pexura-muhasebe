@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PEXURA TECH — Dolar → TL & Sepet</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#121722; --panel2:#0f141d; --text:#f5f7fb; --muted:#97a0b5;
+    --gold:#d6b15d; --gold2:#f1d58b; --green:#56d395; --red:#ff7b7b; --line:#232b39;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% -10%,#1c2433 0,#0b0d12 48%);font-family:Segoe UI,Arial,sans-serif;color:var(--text);padding:18px}
+  .app{width:min(1320px,100%);background:linear-gradient(180deg,rgba(18,23,34,.98),rgba(11,14,20,.98));border:1px solid #2a3241;border-radius:24px;box-shadow:0 28px 80px rgba(0,0,0,.45);overflow:hidden}
+  .top{padding:22px 24px 14px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line)}
+  .brand{font-weight:800;letter-spacing:.12em;font-size:18px}.brand span{color:var(--gold)}
+  .badge{font-size:12px;color:#c6ccda;border:1px solid #30384a;padding:7px 10px;border-radius:999px;background:#111722}
+  .content{padding:24px}
+  .tools{display:grid;grid-template-columns:.88fr 1.32fr;gap:18px;align-items:start}
+  .tool-card{background:rgba(8,12,18,.35);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0}
+  .tool-title{font-size:15px;font-weight:900;letter-spacing:.04em;margin:0 0 16px;color:#eef2f8}
+  .tool-title span{color:var(--gold)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+  .field{position:relative}
+  input,select{width:100%;border:1px solid #30394b;background:#0d121b;color:var(--text);border-radius:14px;padding:16px 50px 16px 16px;font-size:22px;font-weight:700;outline:none;transition:.18s}
+  select{font-size:16px;padding-right:14px}
+  input:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(214,177,93,.12)}
+  .suffix{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-weight:800;color:var(--gold2);font-size:17px;pointer-events:none}
+  .result{margin-top:18px;background:linear-gradient(135deg,#161d29,#10151d);border:1px solid #30394a;border-radius:18px;padding:22px;text-align:center}
+  .result .small,.cart-total .small{font-size:12px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);font-weight:800}
+  .result .amount{font-size:clamp(40px,6vw,62px);line-height:1.05;font-weight:900;margin:8px 0 6px;letter-spacing:-.04em;color:#fff}
+  .result .detail{font-size:14px;color:#aeb7c8}
+  .actions{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;margin-top:16px}
+  button{border:0;border-radius:14px;padding:15px 18px;font-weight:800;font-size:15px;cursor:pointer;transition:.15s}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.55;cursor:wait}
+  .primary{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#17130a}
+  .secondary{background:#1a2130;color:#eef1f7;border:1px solid #30394a}
+  .danger{background:#25171b;color:#ffb0b0;border:1px solid #4a2930}
+  .row{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .status{margin-top:14px;min-height:20px;text-align:center;color:var(--green);font-size:13px;font-weight:700}
+  .help{margin:16px 2px 0;color:#798399;font-size:12px;text-align:center;line-height:1.5}
+  .live{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .live button{padding:9px 12px;font-size:12px;border-radius:10px;background:#161e2c;color:#dbe2ef;border:1px solid #2f394b}
+  #rateInfo{font-size:11px;color:#7f8aa0}
+
+  /* Sepet */
+  .cart-entry{display:grid;grid-template-columns:1.35fr .66fr .82fr auto;gap:10px;align-items:end}
+  .cart-entry input{font-size:17px;padding:13px 42px 13px 13px;border-radius:12px}
+  .cart-entry .suffix{right:12px;font-size:14px}
+  .cart-entry button{height:48px;padding:0 18px;white-space:nowrap;border-radius:12px}
+  .cart-shortcuts{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .cart-shortcuts button{padding:10px 12px;font-size:12px;border-radius:10px;background:#161e2c;color:#dbe2ef;border:1px solid #2f394b}
+  .cart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 8px}
+  .cart-head strong{font-size:13px;letter-spacing:.04em}
+  .cart-meta{font-size:12px;color:var(--muted)}
+  .cart-list-wrap{border:1px solid #2d3544;border-radius:14px;overflow:auto;max-height:390px;background:#0c1119}
+  .cart-table{min-width:690px}
+  .cart-columns,.cart-item{display:grid;grid-template-columns:minmax(150px,1.4fr) 70px 100px 115px 125px 42px;gap:8px;align-items:center}
+  .cart-columns{position:sticky;top:0;z-index:2;padding:10px 12px;background:#151b26;border-bottom:1px solid #2d3544;color:#8f99ad;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+  .cart-item{padding:10px 12px;border-bottom:1px solid #202735;font-size:13px}
+  .cart-item:last-child{border-bottom:0}
+  .cart-name{font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eef2f8}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .cart-usd{color:var(--gold2);font-weight:800}
+  .cart-tl{font-weight:800}
+  .delete-item{width:32px;height:32px;padding:0;border-radius:9px;background:#25171b;color:#ff9a9a;border:1px solid #4a2930;font-size:17px;line-height:1}
+  .empty-cart{padding:42px 20px;text-align:center;color:#747f94;font-size:13px}
+  .cart-summary{display:grid;grid-template-columns:.75fr 1.25fr;gap:12px;margin-top:14px}
+  .cart-total{background:linear-gradient(135deg,#161d29,#10151d);border:1px solid #30394a;border-radius:16px;padding:16px;text-align:center}
+  .cart-total .usd-amount{font-size:27px;font-weight:900;margin-top:6px;color:var(--gold2);letter-spacing:-.02em}
+  .cart-total .tl-amount{font-size:35px;font-weight:900;margin-top:6px;letter-spacing:-.03em}
+  .cart-summary-detail{font-size:11px;color:#8e98aa;margin-top:5px}
+  .cart-actions{display:grid;grid-template-columns:1.1fr .9fr;gap:10px;margin-top:12px}
+  .cart-actions button{padding:13px}
+
+  @media(max-width:980px){.tools{grid-template-columns:1fr}.cart-list-wrap{max-height:320px}}
+  @media(max-width:700px){.grid,.row,.actions,.cart-summary,.cart-actions{grid-template-columns:1fr}.cart-entry{grid-template-columns:1fr 1fr}.cart-entry .name-field{grid-column:1/-1}.cart-entry button{grid-column:1/-1}.content{padding:14px}.top{padding:18px}.app{border-radius:18px}.badge{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand"><span>PEXURA</span> TECH</div>
+    <div class="badge">USD → TRY Hızlı Satış & Sepet</div>
+  </div>
+  <div class="content">
+    <div class="tools">
+      <section class="tool-card">
+        <div class="tool-title"><span>USD → TL</span> Satış Hesaplayıcı</div>
+        <div class="grid">
+          <div>
+            <label for="rate">Satış Kuru</label>
+            <div class="field"><input id="rate" inputmode="decimal" autocomplete="off" placeholder="Örn. 43,00"><span class="suffix">TL</span></div>
+            <div class="live"><button id="liveBtn" type="button">TCMB Kurunu Güncelle</button><span id="rateInfo"></span></div>
+          </div>
+          <div>
+            <label for="usd">Ürün Fiyatı</label>
+            <div class="field"><input id="usd" autofocus inputmode="decimal" autocomplete="off" placeholder="Örn. 18,50"><span class="suffix">$</span></div>
+          </div>
+        </div>
+
+        <div class="result">
+          <div class="small">Müşteriden Alınacak</div>
+          <div class="amount" id="amount">0 TL</div>
+          <div class="detail" id="detail">Kur ve dolar fiyatını gir</div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="rounding">Yuvarlama</label>
+            <select id="rounding">
+              <option value="0">Yuvarlama yok</option>
+              <option value="1">1 TL yukarı</option>
+              <option value="5">5 TL yukarı</option>
+              <option value="10" selected>10 TL yukarı</option>
+              <option value="50">50 TL yukarı</option>
+              <option value="100">100 TL yukarı</option>
+            </select>
+          </div>
+          <div>
+            <label for="extra">Ek Marj (%)</label>
+            <div class="field"><input id="extra" inputmode="decimal" autocomplete="off" value="0"><span class="suffix">%</span></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="copyBtn" type="button">TL Fiyatını Kopyala (Enter)</button>
+          <button class="secondary" id="clearBtn" type="button">Yeni Ürün (Esc)</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="help">Klavye: <b>F2</b> dolar alanı • <b>F4</b> kur alanı • <b>Enter</b> sonucu kopyala • <b>Esc</b> dolar fiyatını temizle. Program açıldığında TCMB USD Döviz Satış kuru otomatik alınır; 30 dakikada bir yenilenir.</div>
+      </section>
+
+      <section class="tool-card">
+        <div class="tool-title"><span>Satış Sepeti</span> — Çoklu Ürün Hesabı</div>
+
+        <div class="cart-entry">
+          <div class="name-field">
+            <label for="cartName">Ürün Adı (İsteğe Bağlı)</label>
+            <div class="field"><input id="cartName" autocomplete="off" placeholder="Örn. Candy Case"></div>
+          </div>
+          <div>
+            <label for="cartQty">Adet</label>
+            <div class="field"><input id="cartQty" inputmode="numeric" autocomplete="off" value="1"><span class="suffix">Adet</span></div>
+          </div>
+          <div>
+            <label for="cartPrice">Birim Fiyat</label>
+            <div class="field"><input id="cartPrice" inputmode="decimal" autocomplete="off" placeholder="Örn. 1,25"><span class="suffix">$</span></div>
+          </div>
+          <button class="primary" id="addCartBtn" type="button">+ Sepete Ekle</button>
+        </div>
+
+        <div class="cart-shortcuts">
+          <button id="useLeftUsdBtn" type="button">← Soldaki $ fiyatını al</button>
+          <button id="focusCartBtn" type="button">Hızlı girişe dön</button>
+          <span class="cart-meta">Birim fiyat alanında <b>Enter</b> = sepete ekle</span>
+        </div>
+        <div class="status" id="cartStatus"></div>
+
+        <div class="cart-head">
+          <strong>SEPETTEKİ ÜRÜNLER</strong>
+          <span class="cart-meta" id="cartMeta">0 ürün • 0 adet</span>
+        </div>
+        <div class="cart-list-wrap">
+          <div class="cart-table">
+            <div class="cart-columns">
+              <div>Ürün</div><div class="num">Adet</div><div class="num">Birim $</div><div class="num">Toplam $</div><div class="num">Toplam TL</div><div></div>
+            </div>
+            <div id="cartItems"></div>
+          </div>
+        </div>
+
+        <div class="cart-summary">
+          <div class="cart-total">
+            <div class="small">Sepet Toplamı</div>
+            <div class="usd-amount" id="cartUsdTotal">0,00 $</div>
+            <div class="cart-summary-detail" id="cartQtySummary">0 adet ürün</div>
+          </div>
+          <div class="cart-total">
+            <div class="small">TL Genel Toplam</div>
+            <div class="tl-amount" id="cartTlTotal">0 TL</div>
+            <div class="cart-summary-detail" id="cartRateDetail">Soldaki satış kuru kullanılır</div>
+          </div>
+        </div>
+
+        <div class="cart-actions">
+          <button class="primary" id="copyCartBtn" type="button">Sepet Toplamını Kopyala</button>
+          <button class="danger" id="clearCartBtn" type="button">Sepeti Temizle</button>
+        </div>
+        <div class="help">Her ürünü <b>adet + dolar birim fiyatı</b> ile sepete ekle. 20–30 ürün birikebilir. Sepetin dolar toplamı ve soldaki satış kuruna göre TL genel toplamı otomatik hesaplanır. Satış kuru değişirse bütün sepetin TL toplamı anında yenilenir.</div>
+      </section>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const rate=$('rate'), usd=$('usd'), rounding=$('rounding'), extra=$('extra'), amount=$('amount'), detail=$('detail'), status=$('status');
+  const cartName=$('cartName'), cartQty=$('cartQty'), cartPrice=$('cartPrice'), cartStatus=$('cartStatus');
+  const cartItems=$('cartItems'), cartMeta=$('cartMeta'), cartUsdTotal=$('cartUsdTotal'), cartTlTotal=$('cartTlTotal'), cartQtySummary=$('cartQtySummary'), cartRateDetail=$('cartRateDetail');
+  let currentResult = 0;
+  let cart = [];
+
+  const parseNum = v => {
+    v=(v??'').toString().trim().replace(/\s/g,'');
+    if(v.includes(',') && v.includes('.')) v=v.replace(/\./g,'').replace(',','.');
+    else v=v.replace(',','.');
+    const n=parseFloat(v); return Number.isFinite(n)?n:0;
+  };
+  const fmt = (n, decimals=2) => new Intl.NumberFormat('tr-TR',{minimumFractionDigits:decimals,maximumFractionDigits:decimals}).format(n);
+  const fmtTL = n => new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2}).format(n)+' TL';
+  const fmtUSD = n => fmt(n,2)+' $';
+
+  const saveSettings=()=>{
+    localStorage.setItem('pexura_rate',rate.value);
+    localStorage.setItem('pexura_rounding',rounding.value);
+    localStorage.setItem('pexura_extra',extra.value);
+  };
+  const saveCart=()=>localStorage.setItem('pexura_cart_v1',JSON.stringify(cart));
+
+  const calc=()=>{
+    const r=parseNum(rate.value), u=parseNum(usd.value), m=parseNum(extra.value);
+    let raw=r*u*(1+m/100); let out=raw; const step=parseNum(rounding.value);
+    if(step>0 && raw>0) out=Math.ceil((raw-1e-9)/step)*step;
+    currentResult=out;
+    amount.textContent=fmtTL(out);
+    if(r>0 && u>0){
+      const marginText=m?` • %${fmt(m,2)} marj`:'';
+      const roundText=step?` • ${step} TL yukarı yuvarlandı`:'';
+      detail.textContent=`${fmt(u,2)} $ × ${fmt(r,4)} TL${marginText}${roundText}`;
+    } else detail.textContent='Kur ve dolar fiyatını gir';
+    saveSettings();
+  };
+
+  async function copyText(text){
+    try{await navigator.clipboard.writeText(text);}
+    catch{
+      const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+  }
+  async function copyResult(){
+    if(currentResult<=0){status.textContent='Önce geçerli bir fiyat gir.'; return;}
+    const text=fmtTL(currentResult); await copyText(text); status.textContent=`Kopyalandı: ${text}`; setTimeout(()=>status.textContent='',1600);
+  }
+  function clearUsd(){usd.value=''; calc(); usd.focus();}
+
+  function makeCartId(){
+    if(window.crypto?.randomUUID) return crypto.randomUUID();
+    return String(Date.now())+'_'+Math.random().toString(36).slice(2);
+  }
+
+  function renderCart(){
+    cartItems.textContent='';
+    const r=parseNum(rate.value);
+    let usdTotal=0, totalQty=0;
+
+    if(cart.length===0){
+      const empty=document.createElement('div');
+      empty.className='empty-cart';
+      empty.textContent='Sepet boş. Yukarıdan ürün eklemeye başla.';
+      cartItems.appendChild(empty);
+    } else {
+      cart.forEach((item,index)=>{
+        const lineUsd=item.qty*item.price;
+        const lineTl=lineUsd*r;
+        usdTotal+=lineUsd; totalQty+=item.qty;
+
+        const row=document.createElement('div'); row.className='cart-item';
+        const name=document.createElement('div'); name.className='cart-name'; name.title=item.name || `Ürün ${index+1}`; name.textContent=item.name || `Ürün ${index+1}`;
+        const qtyEl=document.createElement('div'); qtyEl.className='num'; qtyEl.textContent=fmt(item.qty, Number.isInteger(item.qty)?0:2);
+        const price=document.createElement('div'); price.className='num cart-usd'; price.textContent=fmtUSD(item.price);
+        const usdEl=document.createElement('div'); usdEl.className='num cart-usd'; usdEl.textContent=fmtUSD(lineUsd);
+        const tlEl=document.createElement('div'); tlEl.className='num cart-tl'; tlEl.textContent=r>0?fmtTL(lineTl):'—';
+        const del=document.createElement('button'); del.className='delete-item'; del.type='button'; del.title='Ürünü sil'; del.textContent='×'; del.addEventListener('click',()=>removeCartItem(item.id));
+        row.append(name,qtyEl,price,usdEl,tlEl,del); cartItems.appendChild(row);
+      });
+    }
+
+    if(cart.length===0){ totalQty=0; usdTotal=0; }
+    const tlTotal=usdTotal*r;
+    cartUsdTotal.textContent=fmtUSD(usdTotal);
+    cartTlTotal.textContent=r>0?fmtTL(tlTotal):'Kur girilmedi';
+    cartMeta.textContent=`${cart.length} ürün • ${fmt(totalQty,Number.isInteger(totalQty)?0:2)} adet`;
+    cartQtySummary.textContent=`Toplam ${fmt(totalQty,Number.isInteger(totalQty)?0:2)} adet`;
+    cartRateDetail.textContent=r>0?`${fmt(usdTotal,2)} $ × ${fmt(r,4)} TL satış kuru`:'Soldaki satış kurunu gir';
+    saveCart();
+  }
+
+  function addCartItem(){
+    const q=parseNum(cartQty.value), p=parseNum(cartPrice.value);
+    if(q<=0){cartStatus.textContent='Ürün adedini gir.'; cartQty.focus(); setTimeout(()=>cartStatus.textContent='',1800); return;}
+    if(p<=0){cartStatus.textContent='Dolar birim fiyatını gir.'; cartPrice.focus(); setTimeout(()=>cartStatus.textContent='',1800); return;}
+    const name=cartName.value.trim();
+    cart.push({id:makeCartId(),name,qty:q,price:p});
+    renderCart();
+    cartStatus.textContent=`Eklendi: ${name || 'Ürün'} • ${fmt(q,Number.isInteger(q)?0:2)} adet × ${fmtUSD(p)}`;
+    cartName.value=''; cartQty.value='1'; cartPrice.value='';
+    cartPrice.focus();
+    setTimeout(()=>cartStatus.textContent='',1400);
+  }
+
+  function removeCartItem(id){cart=cart.filter(x=>x.id!==id); renderCart();}
+  function clearCart(){
+    if(cart.length===0){cartStatus.textContent='Sepet zaten boş.'; setTimeout(()=>cartStatus.textContent='',1200); return;}
+    if(!confirm('Sepetteki tüm ürünler silinsin mi?')) return;
+    cart=[]; renderCart(); cartStatus.textContent='Sepet temizlendi.'; setTimeout(()=>cartStatus.textContent='',1400);
+  }
+  function useLeftUsd(){
+    const p=parseNum(usd.value);
+    if(p<=0){cartStatus.textContent='Önce soldaki Ürün Fiyatı alanına dolar fiyatını gir.'; usd.focus(); setTimeout(()=>cartStatus.textContent='',1800); return;}
+    cartPrice.value=String(p).replace('.',','); cartQty.focus(); cartQty.select();
+    cartStatus.textContent='Soldaki dolar fiyatı sepete aktarıldı.'; setTimeout(()=>cartStatus.textContent='',1400);
+  }
+  async function copyCartTotal(){
+    if(cart.length===0){cartStatus.textContent='Sepet boş.'; setTimeout(()=>cartStatus.textContent='',1400); return;}
+    const r=parseNum(rate.value);
+    if(r<=0){cartStatus.textContent='Önce soldaki satış kurunu gir.'; rate.focus(); setTimeout(()=>cartStatus.textContent='',1800); return;}
+    const totalQty=cart.reduce((s,x)=>s+x.qty,0);
+    const usdTotal=cart.reduce((s,x)=>s+(x.qty*x.price),0);
+    const tlTotal=usdTotal*r;
+    const text=`${fmt(totalQty,Number.isInteger(totalQty)?0:2)} adet • ${fmtUSD(usdTotal)} • ${fmtTL(tlTotal)}`;
+    await copyText(text); cartStatus.textContent=`Kopyalandı: ${fmtTL(tlTotal)}`; setTimeout(()=>cartStatus.textContent='',1600);
+  }
+
+  [rate,usd,extra].forEach(x=>x.addEventListener('input',()=>{calc(); renderCart();}));
+  rounding.addEventListener('change',calc);
+  $('copyBtn').addEventListener('click',copyResult); $('clearBtn').addEventListener('click',clearUsd);
+  $('addCartBtn').addEventListener('click',addCartItem); $('useLeftUsdBtn').addEventListener('click',useLeftUsd);
+  $('focusCartBtn').addEventListener('click',()=>{cartPrice.focus(); cartPrice.select();});
+  $('copyCartBtn').addEventListener('click',copyCartTotal); $('clearCartBtn').addEventListener('click',clearCart);
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='F2'){e.preventDefault(); usd.focus(); usd.select(); return;}
+    if(e.key==='F4'){e.preventDefault(); rate.focus(); rate.select(); return;}
+    if(e.key==='Enter'){
+      const a=document.activeElement;
+      if(a===cartName || a===cartQty || a===cartPrice){e.preventDefault(); addCartItem(); return;}
+      if(a?.tagName!=='BUTTON' && a?.tagName!=='SELECT'){e.preventDefault(); copyResult();}
+    }
+    if(e.key==='Escape'){
+      const a=document.activeElement;
+      if(a===cartName || a===cartQty || a===cartPrice){e.preventDefault(); cartName.value=''; cartQty.value='1'; cartPrice.value=''; cartPrice.focus(); return;}
+      e.preventDefault(); clearUsd();
+    }
+  });
+
+  const TCMB_URL='https://www.tcmb.gov.tr/kurlar/today.xml';
+  const TCMB_PROXY='https://api.allorigins.win/raw?url=' + encodeURIComponent(TCMB_URL);
+  function readTcmbUsdSelling(xmlText){
+    const xml=new DOMParser().parseFromString(xmlText,'application/xml');
+    if(xml.querySelector('parsererror')) throw new Error('TCMB verisi okunamadı');
+    const usdNode=[...xml.querySelectorAll('Currency')].find(n => n.getAttribute('CurrencyCode')==='USD');
+    if(!usdNode) throw new Error('USD kuru bulunamadı');
+    const selling=parseFloat((usdNode.querySelector('ForexSelling')?.textContent||'').trim());
+    if(!Number.isFinite(selling) || selling<=0) throw new Error('USD satış kuru geçersiz');
+    const date=xml.documentElement.getAttribute('Tarih') || xml.documentElement.getAttribute('Date') || '';
+    return {selling,date};
+  }
+  async function fetchTcmbText(url){const res=await fetch(url,{cache:'no-store'});if(!res.ok) throw new Error('HTTP '+res.status);return await res.text();}
+  async function updateTcmbRate({silent=false}={}){
+    const btn=$('liveBtn'), info=$('rateInfo'); btn.disabled=true; btn.textContent='TCMB alınıyor...'; if(!silent) status.textContent=''; info.textContent='TCMB kontrol ediliyor...';
+    try{
+      let text; try{text=await fetchTcmbText(TCMB_URL);}catch{ text=await fetchTcmbText(TCMB_PROXY); }
+      const data=readTcmbUsdSelling(text);
+      rate.value=String(data.selling).replace('.',',');
+      localStorage.setItem('pexura_tcmb_rate',String(data.selling)); localStorage.setItem('pexura_tcmb_date',data.date||''); localStorage.setItem('pexura_tcmb_updated',new Date().toISOString());
+      calc(); renderCart(); info.textContent=`TCMB USD satış${data.date?` • ${data.date}`:''}`; status.textContent=`TCMB kuru güncellendi: 1 USD = ${fmt(data.selling,4)} TL`;
+    }catch{
+      const saved=parseNum(localStorage.getItem('pexura_tcmb_rate')); const savedDate=localStorage.getItem('pexura_tcmb_date')||'';
+      if(saved>0){rate.value=String(saved).replace('.',',');calc();renderCart();info.textContent=`Son TCMB kuru${savedDate?` • ${savedDate}`:''}`;status.textContent='TCMB’ye ulaşılamadı; son kaydedilmiş TCMB kuru kullanılıyor.';}
+      else{info.textContent='TCMB kuru alınamadı';status.textContent='TCMB’ye ulaşılamadı. Satış kurunu elle girebilirsin.';}
+    }finally{btn.disabled=false;btn.textContent='TCMB Kurunu Güncelle';if(!silent)setTimeout(()=>status.textContent='',3500);}
+  }
+  $('liveBtn').addEventListener('click',()=>updateTcmbRate());
+
+  rate.value=localStorage.getItem('pexura_rate')||localStorage.getItem('pexura_tcmb_rate')||'';
+  rounding.value=localStorage.getItem('pexura_rounding')||'10';
+  extra.value=localStorage.getItem('pexura_extra')||'0';
+  try{cart=JSON.parse(localStorage.getItem('pexura_cart_v1')||'[]'); if(!Array.isArray(cart)) cart=[];}catch{cart=[];}
+  calc(); renderCart(); updateTcmbRate({silent:true}); setInterval(()=>updateTcmbRate({silent:true}),30*60*1000); setTimeout(()=>usd.focus(),100);
+})();
+</script>
+</body>
+</html>
