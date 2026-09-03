@@ -2105,46 +2105,48 @@ tbody tr:hover{background:rgba(109,124,255,.055)!important}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 /* =========================================================
-   PEXURA LIGHT PREMIUM — ferah ve kurumsal görünüm
+   PEXURA BALANCED DARK — yumuşak kontrastlı kurumsal tema
 ========================================================= */
 :root{
-  --bg:#eef3f8;--sidebar:#ffffff;--card-bg:#ffffff;--border:#dbe4ee;
-  --text:#172033;--text-muted:#66758a;--primary:#4057d6;--primary-hover:#3146bd;
-  --success:#0e9f6e;--danger:#dc4054;--warning:#d78b16;
-  --shadow:0 14px 38px rgba(31,48,78,.09),0 2px 8px rgba(31,48,78,.04);
-  --focus:0 0 0 3px rgba(64,87,214,.16);
+  color-scheme:dark;
+  --bg:#151b26;--sidebar:#1b2331;--card-bg:#222c3c;--border:rgba(174,190,211,.18);
+  --text:#edf2f8;--text-muted:#a5b1c2;--primary:#7c8cff;--primary-hover:#93a0ff;
+  --success:#35c995;--danger:#ff6b78;--warning:#f3bb55;
+  --shadow:0 16px 38px rgba(4,8,15,.22),0 1px 0 rgba(255,255,255,.045) inset;
+  --focus:0 0 0 3px rgba(124,140,255,.24);
 }
-html{background:#eef3f8}
-body{color:var(--text);background:radial-gradient(circle at 84% -8%,rgba(96,117,230,.13),transparent 30%),radial-gradient(circle at 10% 20%,rgba(34,197,139,.08),transparent 24%),linear-gradient(180deg,#f7f9fc 0,#edf2f7 100%)}
-header{background:rgba(255,255,255,.88);border-bottom-color:rgba(125,143,170,.2);box-shadow:0 8px 30px rgba(39,57,88,.08)}
-header h1{background:linear-gradient(120deg,#1b2b4b,#5269dd);-webkit-background-clip:text;background-clip:text;color:transparent}
-nav{background:rgba(255,255,255,.92);border-right-color:#dfe7f0;box-shadow:8px 0 28px rgba(39,57,88,.045)}
-nav button.navbtn{color:#65748a}
-nav button.navbtn:hover{background:#f1f4fb;color:#283a61}
-nav button.navbtn.active{color:#fff;background:linear-gradient(135deg,#536be3,#3e52c7);box-shadow:0 10px 24px rgba(64,87,214,.23)}
-.authbar{background:#f7f9fc;border-color:#dfe7f0}
+html{background:var(--bg)}
+body{color:var(--text);background:radial-gradient(circle at 84% -8%,rgba(124,140,255,.16),transparent 31%),radial-gradient(circle at 8% 24%,rgba(53,201,149,.075),transparent 25%),linear-gradient(180deg,#19212e 0,#141a24 100%)}
+header{background:rgba(27,35,49,.9);border-bottom-color:rgba(174,190,211,.14);box-shadow:0 8px 28px rgba(4,8,15,.2)}
+header h1{background:linear-gradient(120deg,#f8fafc 12%,#bdc5ff 88%);-webkit-background-clip:text;background-clip:text;color:transparent}
+nav{background:linear-gradient(180deg,rgba(31,40,55,.98),rgba(24,31,43,.98));border-right-color:rgba(174,190,211,.13);box-shadow:8px 0 28px rgba(4,8,15,.12)}
+nav button.navbtn{color:#aeb9c9}
+nav button.navbtn:hover{background:rgba(255,255,255,.065);color:#f1f5f9}
+nav button.navbtn.active{color:#fff;background:linear-gradient(135deg,#7182f4,#5667d6);box-shadow:0 10px 24px rgba(70,84,190,.28)}
+.authbar{background:#202938;border-color:rgba(174,190,211,.15)}
 #authUserMail,.muted{color:var(--text-muted)!important}
-.card{color:var(--text);background:rgba(255,255,255,.9);border-color:rgba(136,153,177,.22);box-shadow:var(--shadow)}
-.card:hover{border-color:rgba(64,87,214,.22);box-shadow:0 18px 46px rgba(31,48,78,.12)}
-.card h2,.card h3,.security-setup-title,.security-question-row strong{color:#1b263d}
-.search-container input,.authbar input,.authbar button,input,select,textarea{color:#182238!important;background:#f8fafc!important;border-color:#d7e0eb!important}
-input:hover,select:hover,textarea:hover{border-color:#aebbd0!important}
-input:focus,select:focus,textarea:focus{background:#fff!important;border-color:var(--primary)!important;box-shadow:var(--focus)!important}
-select option{color:#172033;background:#fff}
-.group-btn{color:#34445f;background:#f7f9fc;border-color:#d9e2ed}
-.group-btn:hover{background:#eef2f8;border-color:#b8c4d6}
-.view-mode-switch button{color:#65748a;border-color:#d9e2ed;background:#f7f9fc}
-th{color:#536176!important;background:#f4f7fb!important;border-color:#dde5ef!important}
-td{color:#29364b;border-color:#e6ebf2!important}
-tbody tr:nth-child(even){background:rgba(241,245,249,.55)}
-tbody tr:hover{background:#eef2ff!important}
-.tag{color:#42516a;background:#f0f4f8;border-color:#d9e2ec}
-.stock-audit-panel{color:#24324a;background:linear-gradient(145deg,#f8faff,#f1f5fb);border-color:#d8e1f4;box-shadow:0 10px 28px rgba(39,57,88,.06)}
-.count-card,.urun-price-box{color:#22314a;background:#f6f8fc!important;border-color:#e0e7f0!important}
-.count-card small,.urun-price-box small{color:#748196!important}
-.modal{background:rgba(20,30,48,.42)!important;backdrop-filter:blur(8px)}
-.modal>div,.modal-content{color:#1c2940;background:linear-gradient(145deg,#fff,#f5f8fc)!important;border-color:#dce4ee!important;box-shadow:0 30px 90px rgba(30,45,70,.24)!important}
-.filter-summary,.info-box,.summary-box{color:#41516a!important;background:#f5f8fc!important;border-color:#dce5ef!important}
-.critical-tag{color:#b4233b!important;background:#fff0f2!important;border-color:#ffc7d0!important}
-::-webkit-scrollbar-track{background:#edf2f7}::-webkit-scrollbar-thumb{background:#bdc8d6;border-color:#edf2f7}::-webkit-scrollbar-thumb:hover{background:#9eacbe}
-@media(max-width:900px){header{background:rgba(255,255,255,.94)}nav{background:#fff}.card{background:#fff}}
+.card{color:var(--text);background:linear-gradient(145deg,rgba(38,49,67,.96),rgba(30,39,54,.94));border-color:rgba(174,190,211,.15);box-shadow:var(--shadow)}
+.card:hover{border-color:rgba(124,140,255,.31);box-shadow:0 20px 48px rgba(4,8,15,.28)}
+.card h2,.card h3,.security-setup-title,.security-question-row strong{color:#f3f6fb}
+.search-container input,.authbar input,.authbar button,input,select,textarea{color:#edf2f8!important;background:#18202c!important;border-color:rgba(174,190,211,.21)!important}
+input:hover,select:hover,textarea:hover{border-color:rgba(174,190,211,.38)!important}
+input:focus,select:focus,textarea:focus{background:#1b2432!important;border-color:var(--primary)!important;box-shadow:var(--focus)!important}
+select option{color:#edf2f8;background:#202938}
+.group-btn,.view-mode-switch button{color:#c1cbd9;background:#202938;border-color:rgba(174,190,211,.2)}
+.group-btn:hover,.view-mode-switch button:hover{background:#293448;border-color:rgba(174,190,211,.34);color:#fff}
+th{color:#b3bfd0!important;background:#1a2230!important;border-color:rgba(174,190,211,.15)!important}
+td{color:#dde4ee;border-color:rgba(174,190,211,.11)!important}
+tbody tr:nth-child(even){background:rgba(255,255,255,.018)}
+tbody tr:hover{background:rgba(124,140,255,.085)!important}
+.tag{color:#c6d0de;background:rgba(174,190,211,.1);border-color:rgba(174,190,211,.18)}
+.stock-audit-panel{color:#dce4ef;background:linear-gradient(145deg,#1b2432,#222d3e);border-color:rgba(124,140,255,.24);box-shadow:0 10px 26px rgba(4,8,15,.17)}
+.count-card,.urun-price-box{color:#e8edf5;background:#1b2432!important;border-color:rgba(174,190,211,.15)!important}
+.count-card small,.urun-price-box small{color:#9eabbd!important}
+.modal{background:rgba(7,11,18,.68)!important;backdrop-filter:blur(9px)}
+.modal>div,.modal-content{color:#edf2f8;background:linear-gradient(145deg,#293448,#1e2736)!important;border-color:rgba(174,190,211,.2)!important;box-shadow:0 30px 90px rgba(2,5,10,.48)!important}
+.filter-summary,.info-box,.summary-box{color:#cbd5e1!important;background:#1c2533!important;border-color:rgba(174,190,211,.16)!important}
+.critical-tag{color:#ffb2ba!important;background:rgba(255,107,120,.13)!important;border-color:rgba(255,107,120,.34)!important}
+.finance-overview-card{background:linear-gradient(145deg,#263249,#1e293a)!important}
+.finance-panel{background:#202b3c}.finance-health-strip{background:#1d2736}.finance-track{background:#151d29}
+::-webkit-scrollbar-track{background:#151b26}::-webkit-scrollbar-thumb{background:#435067;border-color:#151b26}::-webkit-scrollbar-thumb:hover{background:#596980}
+@media(max-width:900px){header{background:rgba(27,35,49,.96)}nav{background:#1b2331}.card{background:#222c3c}}

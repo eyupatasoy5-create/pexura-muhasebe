@@ -1,9 +1,9 @@
-const CACHE_NAME = 'pexura-v35-light-premium';
+const CACHE_NAME = 'pexura-v36-balanced-dark';
 const ASSETS = [
   './',
   './index.html',
-  './calculator.html?v=35',
-  './style.css?v=35',
+  './calculator.html?v=36',
+  './style.css?v=36',
   './core.js',
   './stock-math.js?v=34',
   './app.js?v=34',
