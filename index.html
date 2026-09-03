@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PEXURA Tech">
 
-  <link rel="stylesheet" href="style.css?v=37">
+  <link rel="stylesheet" href="style.css?v=40">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -58,7 +58,6 @@
       <span id="connectionBadge" class="connection-badge" aria-live="polite">Çevrimiçi</span>
       <input type="file" id="importFile" accept=".json" style="display:none" />
       <div class="action-group">
-          <button id="voiceCommandBtn" class="group-btn voice-command-trigger" type="button" onclick="openVoiceCommand()">🎙️ Sesli Komut</button>
           <button id="restoreBtn" class="group-btn warning">📂 Yükle</button>
           <button id="backupBtn" class="group-btn success">💾 Yedek Al</button>
           <button onclick="openTimeMachine()" class="group-btn info">⏪ Zaman</button>
@@ -131,7 +130,7 @@
   <main>
     <!-- HESAPLAYICI / MÜŞTERİ EKRANI -->
     <section id="tab-hesaplayici" class="tab">
-      <iframe id="calculatorFrame" src="calculator.html?v=37" title="PEXURA Dolar TL Hesaplayıcı" allow="clipboard-write"></iframe>
+      <iframe id="calculatorFrame" src="calculator.html?v=40" title="PEXURA Dolar TL Hesaplayıcı" allow="clipboard-write"></iframe>
     </section>
 
     <!-- DASHBOARD -->
@@ -979,34 +978,6 @@
   </div>
 </div>
 
-<!-- GENEL SESLİ ASİSTAN -->
-<div id="modalVoiceCommand" class="modal-overlay hide">
-  <div class="modal-content voice-command-modal">
-    <button class="modal-close" type="button" aria-label="Pencereyi kapat" onclick="closeVoiceCommand()">&times;</button>
-    <div class="voice-command-heading">
-      <span class="voice-command-icon" aria-hidden="true">🎙️</span>
-      <div><h2>PEXURA Sesli Asistan</h2><p>Programı sesinizle yönetin veya komutu aşağıya yazın.</p></div>
-    </div>
-    <div class="voice-command-example">
-      <b>Örnekler</b>
-      <span>“Müşteriler sayfasını aç”</span>
-      <span>“Sadece borçluları göster”</span>
-      <span>“Eyüp müşterisini aç”</span>
-      <span>“Lasman kılıf ürününü ara”</span>
-      <span>“Eyüp müşterisine 15 lasman kılıf ekle 1,15’ten”</span>
-      <span>“Yedek al”</span>
-    </div>
-    <textarea id="voiceCommandText" rows="3" placeholder="Komutunuzu söyleyin veya yazın..."></textarea>
-    <div class="voice-command-actions">
-      <button id="voiceListenBtn" class="primary" type="button" onclick="startVoiceListening()">🎙️ Dinlemeyi Başlat</button>
-      <button class="secondary" type="button" onclick="analyzeVoiceCommand()">Komutu Çözümle</button>
-    </div>
-    <div id="voiceCommandStatus" class="voice-command-status" aria-live="polite">Hazır</div>
-    <div id="voiceCommandPreview" class="voice-command-preview hide"></div>
-    <button id="voiceCommandConfirm" class="success hide" type="button" onclick="confirmVoiceCommand()">Komutu Çalıştır</button>
-  </div>
-</div>
-
 <!-- YENİ MÜŞTERİ PANELİ (SEPETLİ + TÜM HAREKETLER) -->
 <div id="modalCariPanel" class="modal-overlay hide">
   <div class="modal-content" style="max-width: 1100px;">
@@ -1141,10 +1112,9 @@
 
 <script src="core.js"></script>
 <script src="stock-math.js?v=34"></script>
-<script src="voice-command.js?v=37"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=37"></script>
+<script src="app.js?v=40"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>

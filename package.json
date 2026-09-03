@@ -1,1 +1,1 @@
-{"name":"pexura-muhasebe","private":true,"scripts":{"test":"node tests/stock-math.test.cjs && node tests/voice-command.test.cjs","check":"node --check app.js && node --check core.js && node --check stock-math.js && node --check voice-command.js"}}
+{"name":"pexura-muhasebe","private":true,"scripts":{"test":"node tests/stock-math.test.cjs","check":"node --check app.js && node --check core.js && node --check stock-math.js"}}

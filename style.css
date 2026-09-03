@@ -2195,17 +2195,3 @@ tbody tr:hover{background:rgba(124,140,255,.085)!important}
   accent-color:var(--primary);
 }
 @media(max-width:640px){.cari-list-filters{justify-content:flex-start;align-items:flex-start;flex-direction:column;gap:10px}}
-
-/* Genel sesli asistan */
-.voice-command-trigger{border-color:rgba(124,140,255,.38)!important;background:rgba(124,140,255,.12)!important;color:#dce2ff!important}
-.voice-command-modal{max-width:620px!important}
-.voice-command-heading{display:flex;align-items:center;gap:14px;margin-bottom:14px}.voice-command-heading h2{margin:0 0 4px}.voice-command-heading p{margin:0;color:var(--text-muted)}
-.voice-command-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:15px;background:linear-gradient(135deg,#7182f4,#5667d6);font-size:25px;box-shadow:0 10px 24px rgba(70,84,190,.28)}
-.voice-command-example{display:grid;gap:6px;padding:14px;margin-bottom:14px;border:1px solid rgba(124,140,255,.2);border-radius:12px;background:rgba(124,140,255,.07);color:#b9c4d4;font-size:12px}.voice-command-example b{color:#dce2ff;margin-bottom:2px}.voice-command-example span:before{content:'•';margin-right:7px;color:#8f9cff}
-.voice-command-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.voice-command-actions button{width:100%}
-#voiceListenBtn.is-listening{animation:voicePulse 1.15s ease-in-out infinite;background:linear-gradient(135deg,#d3465a,#a92f45)!important}
-.voice-command-status{margin:13px 0;padding:10px 12px;border-radius:10px;background:#1a2230;color:#b7c2d1;font-size:13px}.voice-command-status.listening{color:#dce2ff}.voice-command-status.error{color:#ffc0c6;background:rgba(255,107,120,.1)}.voice-command-status.ready{color:#bdf5df;background:rgba(53,201,149,.09)}
-.voice-command-preview{display:grid;gap:1px;overflow:hidden;margin:12px 0;border:1px solid rgba(174,190,211,.16);border-radius:12px;background:rgba(174,190,211,.14)}.voice-command-preview>div{display:flex;justify-content:space-between;gap:18px;padding:11px 13px;background:#202a39}.voice-command-preview span{color:var(--text-muted)}.voice-command-preview b{text-align:right;color:#f1f5f9}
-#voiceCommandConfirm{width:100%;margin-top:4px}
-@keyframes voicePulse{50%{box-shadow:0 0 0 7px rgba(255,107,120,.15)}}
-@media(max-width:640px){.voice-command-actions{grid-template-columns:1fr}.voice-command-preview>div{align-items:flex-start;flex-direction:column;gap:4px}.voice-command-preview b{text-align:left}}
