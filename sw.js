@@ -1,10 +1,11 @@
-const CACHE_NAME = 'pexura-v27-audit-hardening';
+const CACHE_NAME = 'pexura-v34-premium-stock';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=25',
+  './style.css?v=34',
   './core.js',
-  './app.js?v=25',
+  './stock-math.js?v=34',
+  './app.js?v=34',
   './pwa.js?v=25',
   './pdf-font.js',
   './manifest.json',

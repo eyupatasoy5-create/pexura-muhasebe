@@ -7,12 +7,12 @@
   <title>PEXURA Tech</title>
   
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#070b14">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PEXURA Tech">
 
-  <link rel="stylesheet" href="style.css?v=32">
+  <link rel="stylesheet" href="style.css?v=34">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -615,6 +615,11 @@
               </div>
             </div>
           </details>
+          <details class="stock-audit-panel">
+            <summary>⚠️ Uygulama Hata Kayıtları</summary>
+            <div class="stock-audit-actions"><button id="errorLogRefresh" type="button" class="secondary">Hataları Getir</button><span class="muted">Teknik hatalar yönetici incelemesi için kaydedilir.</span></div>
+            <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>Bölüm</th><th>Mesaj</th></tr></thead><tbody id="errorLogList"><tr><td colspan="3" class="muted">Hataları Getir düğmesine basın.</td></tr></tbody></table></div>
+          </details>
 
           <details class="stock-advanced-card">
             <summary><strong>Ürün Birleştirme / Üretim</strong><span class="muted"> 2 veya daha fazla ürünü tüketip yeni ürün stoğu oluştur</span></summary>
@@ -643,6 +648,14 @@
 
 <div class="card" id="uListeCard" style="grid-column: span 8;">
           <h2>Ürünler</h2>
+          <details id="stokKontrolMerkezi" class="stock-audit-panel" open>
+            <summary>🛡️ Stok Kontrol Merkezi <span id="stokAuditBadge" class="tag">Kontrol ediliyor</span></summary>
+            <div class="stock-audit-actions">
+              <button id="stokAuditRefresh" type="button" class="secondary">Yeniden Denetle</button>
+              <span id="stokAuditSummary" class="muted"></span>
+            </div>
+            <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Ürün</th><th>Toplam</th><th>Net Satılan</th><th>İade</th><th>Kayıtlı Kalan</th><th>Doğru Kalan</th><th>Fark</th><th>İşlem</th></tr></thead><tbody id="stokAuditList"></tbody></table></div>
+          </details>
           <div class="urun-toolbar">
             <div class="urun-search-wrap">
               <input id="urunSearchInput" placeholder="Ürün adı, kodu veya birimi ara..." />
@@ -1095,9 +1108,10 @@
 <button id="fab" class="fab hide" type="button" aria-label="Yeni" title="Yeni">+</button>
 
 <script src="core.js"></script>
+<script src="stock-math.js?v=34"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>

@@ -2,6 +2,22 @@ const SUPABASE_URL = "https://qzpozucwuwhyfbnwhjnm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bsEk84gkUDPR7gDHXjjlsw_k6nHSYua";
 
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function recordAppError(area,error,context=null){
+  const message=String(error?.message||error||'Bilinmeyen hata').slice(0,1000);
+  console.error(`[${area}]`,error);
+  try{await supa.from('app_error_logs').insert({area:String(area).slice(0,120),message,context,user_id:USER?.id||null});}catch(_){/* hata kaydi ana islemi engellemez */}
+}
+window.addEventListener('error',e=>recordAppError('window',e.error||e.message,{file:e.filename,line:e.lineno}));
+window.addEventListener('unhandledrejection',e=>recordAppError('promise',e.reason));
+
+async function loadErrorLogs(){
+  const body=document.getElementById('errorLogList');if(!body)return;
+  const {data,error}=await supa.from('app_error_logs').select('created_at,area,message').order('created_at',{ascending:false}).limit(100);
+  if(error){body.innerHTML=`<tr><td colspan="3">${escapeHtml(error.message)}</td></tr>`;return;}
+  body.innerHTML=(data||[]).length?data.map(x=>`<tr><td>${formatTRDateTime(x.created_at)}</td><td>${escapeHtml(x.area)}</td><td>${escapeHtml(x.message)}</td></tr>`).join(''):'<tr><td colspan="3" class="muted">Hata kaydı yok.</td></tr>';
+  applyResponsiveTableLabels();
+}
 let USER = null;
 let USER_ROLE = 'personel';
 
@@ -2140,6 +2156,12 @@ function getUrunFaturaKari(urunId){
 function getUrunSatisIadeOzet(urunId){
   const u = URUNLER.find(x => String(x.id) === String(urunId));
   const real = getUrunGercekSatisIadeOzet(urunId);
+  // Yeni kalici model: toplam stok veritabaninda tutulur; satis ve iadeler
+  // faturalardan canli hesaplanir. Kalan = toplam - brut satis + iade.
+  if(toNum(u?.toplam_stok) > 0){
+    const s=PexuraStockMath.summary(u.toplam_stok,real.satilan,real.iade);
+    return { toplam_stok:s.toplam, satilan:s.netSatilan, brutSatilan:s.brutSatilan, iade:s.iade, kalan:s.kalan, netSatilan:s.netSatilan, kalici:true };
+  }
   const manual = getUrunSayiDuzeltme(urunId);
   if(manual){
     const toplamLimit = Math.max(0, toNum(manual.toplam_stok) || (toNum(manual.satilan) + toNum(manual.kalan)));
@@ -2155,6 +2177,58 @@ function getUrunSatisIadeOzet(urunId){
   const satilanNet = Math.max(0, real.satilan - real.iade);
   const toplam_stok = Math.max(0, satilanNet + kalan);
   return { toplam_stok, satilan: satilanNet, iade: real.iade, kalan, netSatilan: satilanNet };
+}
+
+function getStockAuditRows(){
+  return (URUNLER||[]).map(u=>{
+    const real=getUrunGercekSatisIadeOzet(u.id);
+    const total=toNum(u.toplam_stok);
+    const s=PexuraStockMath.summary(total,real.satilan,real.iade);
+    const recorded=toNum(u.stok_miktar);
+    return {u,...s,recorded,diff:s.kalan-recorded,configured:total>0};
+  });
+}
+
+function renderStockAudit(){
+  const body=document.getElementById('stokAuditList'); if(!body)return;
+  const refresh=document.getElementById('stokAuditRefresh'); if(refresh&&!refresh._bound){refresh._bound=true;refresh.onclick=async()=>{refresh.disabled=true;try{await fetchAll();renderAll();showToast('Stok denetimi yenilendi','success');}finally{refresh.disabled=false;}};}
+  const errorRefresh=document.getElementById('errorLogRefresh');if(errorRefresh&&!errorRefresh._bound){errorRefresh._bound=true;errorRefresh.onclick=loadErrorLogs;}
+  const rows=getStockAuditRows(); const bad=rows.filter(x=>x.configured&&Math.abs(x.diff)>0.000001);
+  const badge=document.getElementById('stokAuditBadge'); if(badge){badge.textContent=bad.length?`${bad.length} hata`:'Tutarlı';badge.className='tag '+(bad.length?'critical-tag':'');}
+  const sum=document.getElementById('stokAuditSummary'); if(sum)sum.textContent=`${rows.length} ürün denetlendi; ${bad.length} tutarsız kayıt bulundu.`;
+  body.innerHTML=bad.length?bad.map(x=>`<tr><td>${escapeHtml(x.u.ad)}</td><td>${x.toplam}</td><td>${x.netSatilan}</td><td>${x.iade}</td><td>${x.recorded}</td><td><b>${x.kalan}</b></td><td style="color:${x.diff>0?'#4ade80':'#f87171'}">${x.diff>0?'+':''}${x.diff}</td><td><button class="success" data-audit-fix="${x.u.id}">Düzelt</button></td></tr>`).join(''):'<tr><td colspan="8" class="muted" style="text-align:center">Tüm stok kayıtları tutarlı.</td></tr>';
+  body.querySelectorAll('[data-audit-fix]').forEach(btn=>btn.onclick=()=>duzeltUrunStogu(btn.dataset.auditFix));
+  applyResponsiveTableLabels();
+}
+
+async function duzeltUrunStogu(urunId){
+  const u = URUNLER.find(x => String(x.id) === String(urunId));
+  if(!u) return showToast('Ürün bulunamadı', 'error');
+  const real = getUrunGercekSatisIadeOzet(urunId);
+  const netSatilan = Math.max(0, real.satilan - real.iade);
+  const mevcutToplam = toNum(u.toplam_stok) || Math.max(0, toNum(u.stok_miktar) + netSatilan);
+  const val = prompt(
+    `${u.ad} için depoya giren TOPLAM stok miktarını yazın.\n\n` +
+    `Faturalardan bulunan: Net satılan ${netSatilan} / İade ${real.iade}\n` +
+    `Hesap: Kalan = Toplam - Net Satılan`,
+    String(mevcutToplam)
+  );
+  if(val === null) return;
+  const toplam = toNum(val);
+  if(!Number.isFinite(toplam) || toplam < 0) return showToast('Geçerli bir toplam stok girin', 'warning');
+  const kalan = toplam - netSatilan;
+  if(kalan < 0) return showToast(`Toplam stok yetersiz. Hesaplanan kalan: ${kalan}`, 'warning');
+
+  const oldRec = {...u};
+  const { error } = await supa.from('urunler').update({ toplam_stok: toplam, stok_miktar: kalan }).eq('id', urunId);
+  if(error) return showToast('Stok düzeltilemedi: ' + error.message, 'error');
+  await logAction('urunler', 'STOCK_RECONCILE', urunId, oldRec);
+  const degisim = kalan - toNum(u.stok_miktar);
+  if(degisim !== 0) await logStockMove({urunId, degisim, tur:'manual', kaynak:'stok_duzelt', kaynak_id:urunId, aciklama:`Toplam ${toplam}, net satılan ${netSatilan}, iade ${real.iade}; kalan ${kalan}`});
+  clearUrunSayiDuzeltme(urunId);
+  await fetchAll();
+  renderAll();
+  showToast(`Stok düzeltildi. Kalan: ${kalan}`, 'success');
 }
 
 function validateUrunSayilari(data){
@@ -2322,7 +2396,7 @@ function renderUrunler(){
             <span class="urun-price-box satis"><small>Satış</small><b>${fmt(u.satis_fiyat, u.para_birimi)}</b></span>
             <span class="urun-price-box kar"><small>Kâr</small><b>${fmt(urunKar, u.para_birimi)}</b></span>
           </div>
-          ${USER_ROLE==='admin' ? `<div class="urun-row-actions"><button class="secondary" data-count-clear="${u.id}">Sayı Sil</button>${editBtn}${delBtn}</div>` : ''}
+          ${USER_ROLE==='admin' ? `<div class="urun-row-actions"><button class="success" data-stock-fix="${u.id}">✓ Stok Düzelt</button><button class="secondary" data-count-clear="${u.id}">Sayı Sil</button>${editBtn}${delBtn}</div>` : ''}
         </div>
       </td>
       <td data-label="İşlem" class="urun-actions"></td>`;
@@ -2330,6 +2404,9 @@ function renderUrunler(){
   });
 
   if(USER_ROLE==='admin'){
+    uListe.querySelectorAll('[data-stock-fix]').forEach(btn=>{
+      btn.onclick=async ()=> duzeltUrunStogu(btn.dataset.stockFix);
+    });
     uListe.querySelectorAll("[data-del]").forEach(btn=>{
       btn.onclick=async ()=>{
         if(confirm("Sil?")){
@@ -2441,6 +2518,7 @@ function initUrunListeControls(){
       document.documentElement.style.setProperty('--urun-title-size', `${URUN_TITLE_SIZE}px`);
     });
   }
+  renderStockAudit();
 }
 
 setTimeout(initUrunListeControls, 0);
@@ -4628,20 +4706,8 @@ window.deleteHistoryItem = async (type, id) => {
   if(!confirm("Bu işlemi silmek ve stokları geri almak istediğine emin misin? (Geri alınamaz)")) return;
 
   if(type === 'fatura') {
-    const { data: fatura } = await supa.from('faturalar').select('tip').eq('id', id).single();
-    const { data: kalemler } = await supa.from('fatura_kalemler').select('*').eq('fatura_id', id);
-
-    const tip = normalizeTip(fatura?.tip||"satis");
-
-    if (kalemler) {
-      for (const k of kalemler) {
-        const degisim = tip === 'satis' ? +k.miktar : -k.miktar;
-        await applyStockChange(k.urun_id, degisim, {tur:"silme", kaynak:"fatura", kaynak_id:id, aciklama:"Fatura silindi geri alım"});
-      }
-    }
-
-    await supa.from('fatura_kalemler').delete().eq('fatura_id', id);
-    await supa.from('faturalar').delete().eq('id', id);
+    const {error}=await supa.rpc('delete_invoice_transaction',{p_invoice_id:id});
+    if(error){await recordAppError('fatura_silme',error,{fatura_id:id});return showToast('Fatura silinemedi; hiçbir değişiklik yapılmadı: '+error.message,'error');}
 
   } else if (type === 'hareket') {
     await supa.from('kasa_hareketler').delete().eq('id', id);
