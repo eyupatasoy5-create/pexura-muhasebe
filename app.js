@@ -29,7 +29,7 @@ let EDIT_FATURA_ID = null;
 let CURRENT_IMG_URL = null;
 let IS_IMG_REMOVED = false;
 
-let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[], STOK_LOGS=[], SYSTEM_LOGS=[];
+let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[], STOK_LOGS=[], SYSTEM_LOGS=[], NOTES=[];
 let FATURA_SATIRLAR=[];
 
 // Ürün listesi arama/sıralama
@@ -548,6 +548,7 @@ async function fetchAll(){
     ]);
     await fetchTumKalemler();
   }
+  await fetchNotes();
   fillSelects();
   generateMissingZReports();
   renderAll();
@@ -3432,30 +3433,97 @@ const writeLocalJson = (key, value) => {
   return saved;
 };
 
-window.saveNote = () => {
+function notesLocalKey(){
+  return USER?.id ? `${NOTES_KEY}_${USER.id}` : NOTES_KEY;
+}
+
+function readLocalNotes(){
+  const scoped = readLocalJson(notesLocalKey(), null);
+  if(Array.isArray(scoped)) return scoped;
+  const legacy = readLocalJson(NOTES_KEY, []);
+  return Array.isArray(legacy) ? legacy : [];
+}
+
+function cacheNotes(){
+  writeLocalJson(notesLocalKey(), NOTES);
+}
+
+function notesDeletedKey(){
+  return `${NOTES_KEY}_deleted_${USER?.id || 'guest'}`;
+}
+
+function readDeletedNoteIds(){
+  const ids=readLocalJson(notesDeletedKey(),[]);
+  return Array.isArray(ids)?ids.map(String):[];
+}
+
+async function fetchNotes(){
+  const localNotes = readLocalNotes();
+  if(!USER){ NOTES = localNotes; return; }
+  try{
+    const deletedIds=readDeletedNoteIds();
+    if(deletedIds.length){
+      const deletion=await supa.from('kullanici_notlari').delete().in('id',deletedIds);
+      if(!deletion.error) writeLocalJson(notesDeletedKey(),[]);
+    }
+    const { data, error } = await supa.from('kullanici_notlari').select('id,title,content,created_at,updated_at').order('created_at',{ascending:false});
+    if(error) throw error;
+    const hiddenIds=new Set(readDeletedNoteIds());
+    NOTES = (data || []).filter(n=>!hiddenIds.has(String(n.id))).map(n=>({id:n.id,title:n.title,text:n.content,created_at:n.created_at,updated_at:n.updated_at}));
+
+    // Önceki sürümde tarayıcıda kalan notları bir kez hesaba taşı.
+    const remoteIds = new Set(NOTES.map(n=>String(n.id)));
+    const pending = localNotes.filter(n=>n?.id && !remoteIds.has(String(n.id)));
+    if(pending.length){
+      const rows = pending.map(n=>({id:n.id,user_id:USER.id,title:n.title||'Not',content:n.text||'',created_at:n.created_at||new Date().toISOString()}));
+      const migrated = await supa.from('kullanici_notlari').upsert(rows,{onConflict:'id'});
+      if(!migrated.error) NOTES = [...pending,...NOTES].sort((a,b)=>appDateMs(b.created_at)-appDateMs(a.created_at));
+    }
+    cacheNotes();
+  }catch(error){
+    NOTES = localNotes;
+    console.warn('Kalıcı not servisine ulaşılamadı; yerel kopya kullanılıyor:',error?.message||error);
+  }
+}
+
+window.saveNote = async () => {
   const title = (document.getElementById('noteTitle')?.value || '').trim();
   const text = (document.getElementById('noteText')?.value || '').trim();
   if(!title && !text) return showToast("Not bos olamaz.", "warning");
-  const notes = readLocalJson(NOTES_KEY, []);
-  notes.unshift({ id: crypto.randomUUID(), title: title || 'Not', text, created_at: new Date().toISOString() });
-  writeLocalJson(NOTES_KEY, notes);
+  if(!USER) return showToast('Not kaydetmek için önce giriş yapın.','warning');
+  const note = { id: crypto.randomUUID(), title: title || 'Not', text, created_at: new Date().toISOString() };
+  const { error } = await supa.from('kullanici_notlari').insert({id:note.id,user_id:USER.id,title:note.title,content:note.text,created_at:note.created_at});
+  if(error){
+    NOTES.unshift(note); cacheNotes(); renderNotes();
+    return showToast('Not cihazda saklandı ancak sunucuya kaydedilemedi. Notlar migration dosyasını uygulayın.','warning');
+  }
+  NOTES.unshift(note); cacheNotes();
   document.getElementById('noteTitle').value = '';
   document.getElementById('noteText').value = '';
   renderNotes();
-  showToast("Not kaydedildi.", "success");
+  showToast("Not kalıcı olarak kaydedildi.", "success");
 };
 
-window.deleteNote = (id) => {
+window.deleteNote = async (id) => {
   if(!confirm("Not silinsin mi?")) return;
-  const notes = readLocalJson(NOTES_KEY, []).filter(n => n.id !== id);
-  writeLocalJson(NOTES_KEY, notes);
+  NOTES = NOTES.filter(n => String(n.id) !== String(id));
+  cacheNotes();
   renderNotes();
+  if(USER){
+    const { error } = await supa.from('kullanici_notlari').delete().eq('id',id);
+    if(error){
+      const pending=new Set(readDeletedNoteIds()); pending.add(String(id));
+      writeLocalJson(notesDeletedKey(),[...pending]);
+      return showToast('Not silindi; sunucu bağlantısı gelince silme işlemi eşitlenecek.','warning');
+    }
+  }
+  showToast('Not silindi.','success');
 };
 
 function renderNotes(){
   const box = document.getElementById('notesList');
   if(!box) return;
-  const notes = readLocalJson(NOTES_KEY, []);
+  const notes = NOTES;
   if(!notes.length){
     box.innerHTML = `<div class="muted">Henuz not yok.</div>`;
     return;
@@ -4834,7 +4902,8 @@ function buildBackupPayload(){
       gelir_gider: GG || [],
       faturalar: FATURALAR || [],
       fatura_kalemler: TUM_KALEMLER || [],
-      stok_hareketleri: STOK_LOGS || []
+      stok_hareketleri: STOK_LOGS || [],
+      kullanici_notlari: (NOTES || []).map(n=>({id:n.id,user_id:USER?.id,title:n.title,content:n.text,created_at:n.created_at,updated_at:n.updated_at||null}))
     }
   };
 }
@@ -4869,7 +4938,9 @@ function _maybeAttachUserId(rows){
 async function upsertTable(table, rows){
   if(!rows || !rows.length) return;
   // user_id varsa doldur
-  const prepared = _maybeAttachUserId(rows);
+  const prepared = table === 'kullanici_notlari'
+    ? rows.map(row=>({...row,user_id:USER.id}))
+    : _maybeAttachUserId(rows);
 
   // çoğu tabloda pk = id; upsert çakışma çözümü
   const { error } = await supa.from(table).upsert(prepared, { onConflict: "id" });
@@ -4878,7 +4949,7 @@ async function upsertTable(table, rows){
 
 const BACKUP_TABLES = Object.freeze([
   "cariler", "urunler", "kasa_hesaplar", "faturalar", "fatura_kalemler",
-  "kasa_hareketler", "gelir_gider", "stok_hareketleri"
+  "kasa_hareketler", "gelir_gider", "stok_hareketleri", "kullanici_notlari"
 ]);
 
 function validateBackupPayload(payload){

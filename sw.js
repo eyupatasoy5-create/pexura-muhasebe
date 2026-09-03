@@ -1,12 +1,12 @@
-const CACHE_NAME = 'pexura-v40-no-voice';
+const CACHE_NAME = 'pexura-v41-persistent-notes';
 const ASSETS = [
   './',
   './index.html',
-  './calculator.html?v=40',
-  './style.css?v=40',
+  './calculator.html?v=41',
+  './style.css?v=41',
   './core.js',
   './stock-math.js?v=34',
-  './app.js?v=40',
+  './app.js?v=41',
   './pwa.js?v=25',
   './pdf-font.js',
   './manifest.json',
