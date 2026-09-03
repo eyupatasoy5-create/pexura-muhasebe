@@ -42,6 +42,8 @@ let URUN_TITLE_SIZE = localStorage.getItem('urunTitleSize') || '18';
 let ACTIVE_CARI_ID = null;
 let CP_SEPET = [];
 let CP_HAREKETLER = [];
+let VOICE_SALE_DRAFT = null;
+let VOICE_RECOGNITION = null;
 
 // Fatura ekranında "son kullanılan cariler" (localStorage)
 const RECENT_CARI_KEY = "recentCariIds";
@@ -1952,10 +1954,10 @@ function bakiyeHtmlForCari(c){
 
   // Aynı satırda küçük etiketler
   return entries.map(([cur,val])=>{
-    const cls = val > 0 ? "danger" : "success"; // borç kırmızı, alacak yeşil
+    const cls = val > 0 ? "balance-debt" : "balance-credit"; // borç kırmızı, alacak yeşil
     const txt = `${Math.abs(val).toLocaleString("tr-TR")} ${cur}`;
     const sign = val > 0 ? "Borç" : "Alacak";
-    return `<span class="tag ${cls}" title="${sign}">${txt}</span>`;
+    return `<span class="tag balance-badge ${cls}" title="${sign}">${txt}</span>`;
   }).join(" ");
 }
 
@@ -1963,16 +1965,21 @@ function renderCariler(){
   cariListe.innerHTML="";
   const isMobile = window.matchMedia("(max-width: 640px)").matches;
   const showPasif = !!document.getElementById('showPasifCariler')?.checked;
+  const showOnlyDebtors = !!document.getElementById('showOnlyDebtors')?.checked;
   const searchTerm = String(document.getElementById('cariSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const list = (CARILER||[])
     .filter(c => showPasif ? true : (c.aktif !== false))
+    .filter(c => !showOnlyDebtors || Object.values(getCariBakiyeMap(c)).some(value => toNum(value) > 0.000001))
     .filter(c => !searchTerm || [c.ad, c.tel, c.mail, c.adres, c.tur]
       .some(value => String(value || '').toLocaleLowerCase('tr-TR').includes(searchTerm)))
     .slice()
     .sort((a,b)=> (a.aktif===false) - (b.aktif===false));
 
   if(!list.length){
-    cariListe.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${searchTerm ? 'Aramanızla eşleşen müşteri bulunamadı.' : 'Müşteri bulunamadı.'}</td></tr>`;
+    const emptyMessage = searchTerm
+      ? 'Aramanızla eşleşen müşteri bulunamadı.'
+      : (showOnlyDebtors ? 'Borçlu müşteri bulunamadı.' : 'Müşteri bulunamadı.');
+    cariListe.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${emptyMessage}</td></tr>`;
     return;
   }
 
@@ -3855,6 +3862,183 @@ document.getElementById('kKdv').value = "0";
 document.getElementById('uKdv').value = "0";
 
 /* =========================================================
+   PEXURA SESLİ ASİSTAN
+========================================================= */
+function voiceNormalize(value){
+  return window.PexuraVoiceCommand?.normalize(value) || String(value || '').toLocaleLowerCase('tr-TR');
+}
+
+function voiceTabCommand(text){
+  const value = voiceNormalize(text);
+  const tabs = [
+    {tab:'hesaplayici', words:['hesaplayici','hesap makinesi']},
+    {tab:'dash', words:['dashboard','ana sayfa','panel']},
+    {tab:'finans', words:['finans','finansal durum']},
+    {tab:'faturalar', words:['fatura','faturalar']},
+    {tab:'cariler', words:['musteriler','musteri listesi','cariler','cari listesi']},
+    {tab:'urunler', words:['urunler','urun listesi','stoklar']},
+    {tab:'kasa', words:['kasa','banka']},
+    {tab:'gelirgider', words:['gelir gider','gelir','gider']},
+    {tab:'raporlar', words:['raporlar','rapor']},
+    {tab:'gecmis', words:['islem gecmisi','gecmis']},
+    {tab:'notlar', words:['notlar','not']}
+  ];
+  if(!/(ac|git|goster|getir|sayfa|ekran)/.test(value)) return null;
+  return tabs.find(item => item.words.some(word => value.includes(word)))?.tab || null;
+}
+
+function setVoiceStatus(message, kind=''){
+  const el=document.getElementById('voiceCommandStatus');
+  if(!el) return;
+  el.textContent=message;
+  el.className=`voice-command-status ${kind}`.trim();
+}
+
+function setVoiceDraft(draft, html, buttonText='Komutu Çalıştır'){
+  VOICE_SALE_DRAFT=draft;
+  const preview=document.getElementById('voiceCommandPreview');
+  const confirmBtn=document.getElementById('voiceCommandConfirm');
+  preview.innerHTML=html;
+  preview.classList.remove('hide');
+  confirmBtn.textContent=buttonText;
+  confirmBtn.classList.remove('hide');
+  setVoiceStatus('Komut hazır. Özeti kontrol edip onaylayın.','ready');
+}
+
+window.openVoiceCommand=()=>{
+  const modal=document.getElementById('modalVoiceCommand');
+  modal?.classList.remove('hide');
+  VOICE_SALE_DRAFT=null;
+  document.getElementById('voiceCommandPreview')?.classList.add('hide');
+  document.getElementById('voiceCommandConfirm')?.classList.add('hide');
+  setVoiceStatus('Hazır');
+  setTimeout(()=>document.getElementById('voiceCommandText')?.focus(),80);
+};
+
+window.closeVoiceCommand=()=>{
+  try{ VOICE_RECOGNITION?.stop(); }catch(_){/* zaten durmuş olabilir */}
+  document.getElementById('modalVoiceCommand')?.classList.add('hide');
+};
+
+window.startVoiceListening=()=>{
+  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!Recognition){
+    setVoiceStatus('Bu tarayıcı mikrofonla konuşmayı desteklemiyor. Komutu yazarak kullanabilirsiniz.','error');
+    return;
+  }
+  try{ VOICE_RECOGNITION?.stop(); }catch(_){/* yeni oturum başlayacak */}
+  const recognition=new Recognition();
+  VOICE_RECOGNITION=recognition;
+  recognition.lang='tr-TR';
+  recognition.interimResults=false;
+  recognition.maxAlternatives=3;
+  recognition.onstart=()=>setVoiceStatus('Dinliyorum…','listening');
+  recognition.onresult=(event)=>{
+    const transcript=event.results?.[0]?.[0]?.transcript||'';
+    document.getElementById('voiceCommandText').value=transcript;
+    setVoiceStatus(`Algılandı: “${transcript}”`,'ready');
+    analyzeVoiceCommand();
+  };
+  recognition.onerror=(event)=>{
+    const messages={not_allowed:'Mikrofon izni verilmedi.',no_speech:'Ses algılanamadı; tekrar deneyin.',network:'Ses hizmetine bağlanılamadı.'};
+    setVoiceStatus(messages[event.error]||`Ses tanıma hatası: ${event.error}`,'error');
+  };
+  recognition.onend=()=>document.getElementById('voiceListenBtn')?.classList.remove('is-listening');
+  document.getElementById('voiceListenBtn')?.classList.add('is-listening');
+  recognition.start();
+};
+
+window.analyzeVoiceCommand=()=>{
+  const raw=String(document.getElementById('voiceCommandText')?.value||'').trim();
+  const value=voiceNormalize(raw);
+  VOICE_SALE_DRAFT=null;
+  document.getElementById('voiceCommandPreview')?.classList.add('hide');
+  document.getElementById('voiceCommandConfirm')?.classList.add('hide');
+  if(!raw) return setVoiceStatus('Önce bir komut söyleyin veya yazın.','error');
+
+  const sale=window.PexuraVoiceCommand?.parseSaleCommand(raw,CARILER,URUNLER);
+  if(sale?.ok && /(ekle|sat|satis|fatura)/.test(value)){
+    const total=sale.quantity*sale.price;
+    return setVoiceDraft(
+      {type:'sale',...sale},
+      `<div><span>Müşteri</span><b>${escapeHtml(sale.customer.ad)}</b></div><div><span>Ürün</span><b>${escapeHtml(sale.product.ad)}</b></div><div><span>Adet × Fiyat</span><b>${sale.quantity.toLocaleString('tr-TR')} × ${fmt(sale.price,sale.product.para_birimi||'USD')}</b></div><div><span>Toplam</span><b>${fmt(total,sale.product.para_birimi||'USD')}</b></div>`,
+      'Onayla ve Satışı Oluştur'
+    );
+  }
+
+  if(/(sadece )?borclulari goster/.test(value)){
+    return setVoiceDraft({type:'debtors',enabled:true},'<div><span>Görünüm</span><b>Müşteriler → Sadece borçlular</b></div>');
+  }
+  if(/(tum|butun) musterileri goster/.test(value)){
+    return setVoiceDraft({type:'debtors',enabled:false},'<div><span>Görünüm</span><b>Müşteriler → Tüm müşteriler</b></div>');
+  }
+  if(/yedek (al|indir|olustur)/.test(value)){
+    return setVoiceDraft({type:'backup'},'<div><span>İşlem</span><b>Güncel verilerin yedeğini indir</b></div>','Onayla ve Yedek Al');
+  }
+
+  const openCustomer=/(musterisini|musteriyi|cariyi) ac/.test(value);
+  if(openCustomer){
+    const match=window.PexuraVoiceCommand.findBestEntity(raw,CARILER,['ad','tel']);
+    if(match.item) return setVoiceDraft({type:'openCustomer',customer:match.item},`<div><span>Müşteri</span><b>${escapeHtml(match.item.ad)} kartını aç</b></div>`);
+    return setVoiceStatus(match.ambiguous?'Birden fazla müşteri eşleşti; adı daha açık söyleyin.':'Müşteri bulunamadı.','error');
+  }
+
+  if(/urun(u|unu)? ara/.test(value)){
+    const match=window.PexuraVoiceCommand.findBestEntity(raw,URUNLER,['ad','kod']);
+    if(match.item) return setVoiceDraft({type:'searchProduct',product:match.item},`<div><span>Ürün araması</span><b>${escapeHtml(match.item.ad)}</b></div>`);
+    return setVoiceStatus(match.ambiguous?'Birden fazla ürün eşleşti; adı daha açık söyleyin.':'Ürün bulunamadı.','error');
+  }
+
+  const tab=voiceTabCommand(raw);
+  if(tab) return setVoiceDraft({type:'navigate',tab},`<div><span>Sayfa</span><b>${escapeHtml(raw)}</b></div>`);
+
+  setVoiceStatus(sale?.error || 'Komut anlaşılamadı. Örneklerden birini deneyin.','error');
+};
+
+window.confirmVoiceCommand=async()=>{
+  const draft=VOICE_SALE_DRAFT;
+  if(!draft) return setVoiceStatus('Önce komutu çözümleyin.','error');
+  const btn=document.getElementById('voiceCommandConfirm');
+  btn.disabled=true;
+  setVoiceStatus('Komut uygulanıyor…','listening');
+  try{
+    if(draft.type==='navigate') document.querySelector(`button[data-tab="${draft.tab}"]`)?.click();
+    if(draft.type==='debtors'){
+      document.querySelector('button[data-tab="cariler"]')?.click();
+      const checkbox=document.getElementById('showOnlyDebtors');
+      if(checkbox) checkbox.checked=draft.enabled;
+      renderCariler();
+    }
+    if(draft.type==='openCustomer') await openCariPanel(draft.customer.id);
+    if(draft.type==='searchProduct'){
+      document.querySelector('button[data-tab="urunler"]')?.click();
+      const input=document.getElementById('urunSearchInput');
+      if(input){ input.value=draft.product.ad; input.dispatchEvent(new Event('input',{bubbles:true})); }
+    }
+    if(draft.type==='backup') document.getElementById('backupBtn')?.click();
+    if(draft.type==='sale'){
+      if(draft.customer.aktif===false) throw new Error('Pasif müşteriye satış yapılamaz.');
+      if(draft.quantity>toNum(draft.product.stok_miktar)) throw new Error(`Stok yetersiz. Mevcut stok: ${draft.product.stok_miktar}`);
+      await openCariPanel(draft.customer.id);
+      const select=document.getElementById('cpUrunSelect');
+      select.value=String(draft.product.id);
+      cpUrunSecildi();
+      document.getElementById('cpUrunAdet').value=String(draft.quantity);
+      document.getElementById('cpUrunFiyat').value=String(draft.price);
+      cpSatirHesapla();
+      cpSepeteEkle();
+      if(CP_SEPET.length!==1) throw new Error('Ürün sepete eklenemedi.');
+      await cpSatisiTamamla();
+    }
+    closeVoiceCommand();
+    if(draft.type!=='sale'&&draft.type!=='backup') showToast('Sesli komut uygulandı.','success');
+  }catch(error){
+    setVoiceStatus(error?.message||'Komut uygulanamadı.','error');
+    recordAppError('voice-command',error,{type:draft.type});
+  }finally{btn.disabled=false;}
+};
+
+/* =========================================================
    MÜŞTERİ PANELİ (SEPET + HAREKET)
 ========================================================= */
 
@@ -4970,6 +5154,10 @@ loadSession();
 // UI events
 document.getElementById('showPasifCariler')?.addEventListener('change', ()=>{
   try{ renderCariler(); }catch(e){}
+});
+
+document.getElementById('showOnlyDebtors')?.addEventListener('change', ()=>{
+  try{ renderCariler(); }catch(e){ console.error(e); }
 });
 
 document.getElementById('cariSearch')?.addEventListener('input', PexuraCore.debounce(()=>{

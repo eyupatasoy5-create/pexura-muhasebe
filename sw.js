@@ -1,12 +1,13 @@
-const CACHE_NAME = 'pexura-v36-balanced-dark';
+const CACHE_NAME = 'pexura-v37-balanced-dark';
 const ASSETS = [
   './',
   './index.html',
-  './calculator.html?v=36',
-  './style.css?v=36',
+  './calculator.html?v=37',
+  './style.css?v=37',
   './core.js',
   './stock-math.js?v=34',
-  './app.js?v=34',
+  './voice-command.js?v=37',
+  './app.js?v=37',
   './pwa.js?v=25',
   './pdf-font.js',
   './manifest.json',
