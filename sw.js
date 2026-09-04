@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v41-persistent-notes';
+const CACHE_NAME = 'pexura-v42-note-recovery';
 const ASSETS = [
   './',
   './index.html',

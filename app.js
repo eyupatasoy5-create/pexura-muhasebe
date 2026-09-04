@@ -3438,10 +3438,26 @@ function notesLocalKey(){
 }
 
 function readLocalNotes(){
-  const scoped = readLocalJson(notesLocalKey(), null);
-  if(Array.isArray(scoped)) return scoped;
   const legacy = readLocalJson(NOTES_KEY, []);
-  return Array.isArray(legacy) ? legacy : [];
+  const scoped = USER?.id ? readLocalJson(notesLocalKey(), []) : [];
+  const combined = [
+    ...(Array.isArray(scoped) ? scoped : []),
+    ...(Array.isArray(legacy) ? legacy : [])
+  ];
+  const unique = new Map();
+  combined.forEach(note=>{
+    if(!note || typeof note !== 'object') return;
+    const id = note.id || crypto.randomUUID();
+    if(unique.has(String(id))) return;
+    unique.set(String(id), {
+      id,
+      title: note.title || 'Not',
+      text: note.text ?? note.content ?? '',
+      created_at: note.created_at || note.createdAt || new Date().toISOString(),
+      updated_at: note.updated_at || note.updatedAt || null
+    });
+  });
+  return [...unique.values()].sort((a,b)=>appDateMs(b.created_at)-appDateMs(a.created_at));
 }
 
 function cacheNotes(){
