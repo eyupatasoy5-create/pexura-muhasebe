@@ -586,7 +586,7 @@
 
 <div class="card stock-move-card" style="grid-column: span 12;">
           <div class="section-heading">
-            <div><h2>Stok Giriş / Çıkış</h2><p class="muted">Fatura dışındaki mal kabul, fire, numune ve sayım farklarını kaydedin.</p></div>
+            <div><h2>Stok Hareketi</h2><p class="muted">Mal kabulünü tarih ve açıklamasıyla kaydedin. Mevcut stok yalnızca bu hareketler ve faturalarla değişir.</p></div>
             <span class="tag">Negatif stok kapalı</span>
           </div>
           <div class="stock-move-form">
@@ -597,9 +597,10 @@
               <option value="sayim">Sayım Sonucu</option>
             </select>
             <input id="stokIslemMiktar" type="number" min="0" step="1" inputmode="numeric" placeholder="Adet">
+            <input id="stokIslemTarih" type="date" aria-label="Hareket tarihi">
             <select id="stokIslemNeden" aria-label="Stok işlem nedeni">
               <option value="">Neden seçin</option>
-              <option>Mal kabul</option><option>Depolar arası düzeltme</option><option>Fire / hasar</option>
+              <option>Mal kabul</option><option>Tedarikçi teslimatı</option><option>Depolar arası düzeltme</option><option>Fire / hasar</option>
               <option>Numune / promosyon</option><option>Sayım farkı</option><option>Diğer</option>
             </select>
             <input id="stokIslemAciklama" maxlength="250" placeholder="Açıklama / belge no">
@@ -657,7 +658,7 @@
               <button id="stokAuditRefresh" type="button" class="secondary">Yeniden Denetle</button>
               <span id="stokAuditSummary" class="muted"></span>
             </div>
-            <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Ürün</th><th>Toplam</th><th>Net Satılan</th><th>İade</th><th>Kayıtlı Kalan</th><th>Doğru Kalan</th><th>Fark</th><th>İşlem</th></tr></thead><tbody id="stokAuditList"></tbody></table></div>
+            <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Ürün</th><th>Fatura Satışı</th><th>Fatura İadesi</th><th>Mevcut Stok</th><th>Not</th></tr></thead><tbody id="stokAuditList"></tbody></table></div>
           </details>
           <div class="urun-toolbar">
             <div class="urun-search-wrap">
@@ -1115,7 +1116,7 @@
 <script src="stock-math.js?v=34"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=44"></script>
+<script src="app.js?v=45"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>

@@ -562,7 +562,9 @@ async function fetchTumKalemler() {
 
 async function fetchStokLoglari(){
   try{
-    const { data, error } = await supa.from('stok_hareketleri').select('*').order('tarih',{ascending:false});
+    // Yeni hareketlerde ayrıca tarih tutulur. Eski kurulumlarda bu alan
+    // bulunmayabileceği için sorgu her zaman var olan created_at ile sıralanır.
+    const { data, error } = await supa.from('stok_hareketleri').select('*').order('created_at',{ascending:false});
     if(error) throw error;
     STOK_LOGS = data || [];
   }catch(e){
@@ -2163,33 +2165,17 @@ function getUrunFaturaKari(urunId){
 function getUrunSatisIadeOzet(urunId){
   const u = URUNLER.find(x => String(x.id) === String(urunId));
   const real = getUrunGercekSatisIadeOzet(urunId);
-  // Yeni kalici model: toplam stok veritabaninda tutulur; satis ve iadeler
-  // faturalardan canli hesaplanir. Kalan = toplam - brut satis + iade.
-  if(toNum(u?.toplam_stok) > 0){
-    const s=PexuraStockMath.summary(u.toplam_stok,real.satilan,real.iade);
-    return { toplam_stok:s.toplam, satilan:s.netSatilan, brutSatilan:s.brutSatilan, iade:s.iade, kalan:s.kalan, netSatilan:s.netSatilan, kalici:true };
-  }
-  const manual = getUrunSayiDuzeltme(urunId);
-  if(manual){
-    const satilan = Math.max(0, stokAdedi(manual.satilan));
-    const iade = Math.max(0, stokAdedi(manual.iade));
-    const kalan = Math.max(0, stokAdedi(manual.kalan));
-    const toplamLimit = Math.max(0, stokAdedi(manual.toplam_stok) || stokAdedi(satilan + kalan));
-    return { toplam_stok: toplamLimit, satilan, iade, kalan, netSatilan: satilan, manual:true };
-  }
-  const kalan = Math.max(0, toNum(u?.stok_miktar));
-  const satilanNet = Math.max(0, stokAdedi(real.satilan - real.iade));
-  const toplam_stok = Math.max(0, stokAdedi(satilanNet + kalan));
-  return { toplam_stok, satilan: satilanNet, iade: real.iade, kalan, netSatilan: satilanNet };
+  // Tek stok doğrusu urunler.stok_miktar'dır. Satış ve iadeler yalnızca
+  // fatura geçmişi bilgisidir; bunlardan kalan stok kesinlikle türetilmez.
+  const mevcut = Math.max(0, stokAdedi(u?.stok_miktar));
+  return { satilan:Math.max(0,stokAdedi(real.satilan)), iade:Math.max(0,stokAdedi(real.iade)), netSatilan:stokAdedi(real.satilan-real.iade), kalan:mevcut, mevcut };
 }
 
 function getStockAuditRows(){
   return (URUNLER||[]).map(u=>{
     const real=getUrunGercekSatisIadeOzet(u.id);
-    const total=toNum(u.toplam_stok);
-    const s=PexuraStockMath.summary(total,real.satilan,real.iade);
     const recorded=toNum(u.stok_miktar);
-    return {u,...s,recorded,diff:s.kalan-recorded,configured:total>0};
+    return {u, satilan:stokAdedi(real.satilan), iade:stokAdedi(real.iade), recorded};
   });
 }
 
@@ -2197,11 +2183,10 @@ function renderStockAudit(){
   const body=document.getElementById('stokAuditList'); if(!body)return;
   const refresh=document.getElementById('stokAuditRefresh'); if(refresh&&!refresh._bound){refresh._bound=true;refresh.onclick=async()=>{refresh.disabled=true;try{await fetchAll();renderAll();showToast('Stok denetimi yenilendi','success');}finally{refresh.disabled=false;}};}
   const errorRefresh=document.getElementById('errorLogRefresh');if(errorRefresh&&!errorRefresh._bound){errorRefresh._bound=true;errorRefresh.onclick=loadErrorLogs;}
-  const rows=getStockAuditRows(); const bad=rows.filter(x=>x.configured&&Math.abs(x.diff)>0.000001);
-  const badge=document.getElementById('stokAuditBadge'); if(badge){badge.textContent=bad.length?`${bad.length} hata`:'Tutarlı';badge.className='tag '+(bad.length?'critical-tag':'');}
-  const sum=document.getElementById('stokAuditSummary'); if(sum)sum.textContent=`${rows.length} ürün denetlendi; ${bad.length} tutarsız kayıt bulundu.`;
-  body.innerHTML=bad.length?bad.map(x=>`<tr><td>${escapeHtml(x.u.ad)}</td><td>${x.toplam}</td><td>${x.netSatilan}</td><td>${x.iade}</td><td>${x.recorded}</td><td><b>${x.kalan}</b></td><td style="color:${x.diff>0?'#4ade80':'#f87171'}">${x.diff>0?'+':''}${x.diff}</td><td><button class="success" data-audit-fix="${x.u.id}">Düzelt</button></td></tr>`).join(''):'<tr><td colspan="8" class="muted" style="text-align:center">Tüm stok kayıtları tutarlı.</td></tr>';
-  body.querySelectorAll('[data-audit-fix]').forEach(btn=>btn.onclick=()=>duzeltUrunStogu(btn.dataset.auditFix));
+  const rows=getStockAuditRows();
+  const badge=document.getElementById('stokAuditBadge'); if(badge){badge.textContent='Hareket bazlı';badge.className='tag';}
+  const sum=document.getElementById('stokAuditSummary'); if(sum)sum.textContent=`${rows.length} ürün listelendi. Mevcut stok yalnızca kayıtlı stok hareketleriyle değişir.`;
+  body.innerHTML=rows.length?rows.map(x=>`<tr><td>${escapeHtml(x.u.ad)}</td><td>${x.satilan}</td><td>${x.iade}</td><td><b>${x.recorded}</b></td><td class="muted">Stok hareketinden düzenleyin</td></tr>`).join(''):'<tr><td colspan="5" class="muted" style="text-align:center">Ürün bulunamadı.</td></tr>';
   applyResponsiveTableLabels();
 }
 
@@ -2365,14 +2350,14 @@ function renderUrunler(){
         <div class="urun-info-box">
           <div class="urun-ad-title">${escapeHtml(u.ad||'-')} ${krit?'<span class="tag critical-tag">KRİTİK</span>':""}</div>
           <div class="urun-stock-summary">
-            <span class="count-card"><small>Satılan</small><b>${ozet.satilan}</b>${USER_ROLE==='admin' ? `<button class="count-pencil" title="Satılanı düzenle" data-count-field="satilan" data-count-id="${u.id}">✎</button>` : ''}</span>
-            <span class="count-card"><small>İade</small><b>${ozet.iade}</b>${USER_ROLE==='admin' ? `<button class="count-pencil" title="İadeyi düzenle" data-count-field="iade" data-count-id="${u.id}">✎</button>` : ''}</span>
-            <span class="count-card"><small>Kalan</small><b>${ozet.kalan}</b><em>${escapeHtml(u.birim||'')}</em>${USER_ROLE==='admin' ? `<button class="count-pencil" title="Kalanı düzenle" data-count-field="kalan" data-count-id="${u.id}">✎</button>` : ''}</span>
+            <span class="count-card"><small>Fatura Satışı</small><b>${ozet.satilan}</b></span>
+            <span class="count-card"><small>Fatura İadesi</small><b>${ozet.iade}</b></span>
+            <span class="count-card"><small>Mevcut Stok</small><b>${ozet.mevcut}</b><em>${escapeHtml(u.birim||'')}</em></span>
             <span class="urun-price-box alis"><small>Alış</small><b>${fmt(u.alis_fiyat, u.para_birimi)}</b></span>
             <span class="urun-price-box satis"><small>Satış</small><b>${fmt(u.satis_fiyat, u.para_birimi)}</b></span>
             <span class="urun-price-box kar"><small>Kâr</small><b>${fmt(urunKar, u.para_birimi)}</b></span>
           </div>
-          ${USER_ROLE==='admin' ? `<div class="urun-row-actions"><button class="success" data-stock-fix="${u.id}">✓ Stok Düzelt</button><button class="secondary" data-count-clear="${u.id}">Sayı Sil</button>${editBtn}${delBtn}</div>` : ''}
+          ${USER_ROLE==='admin' ? `<div class="urun-row-actions">${editBtn}${delBtn}</div>` : ''}
         </div>
       </td>
       <td data-label="İşlem" class="urun-actions"></td>`;
@@ -2380,9 +2365,6 @@ function renderUrunler(){
   });
 
   if(USER_ROLE==='admin'){
-    uListe.querySelectorAll('[data-stock-fix]').forEach(btn=>{
-      btn.onclick=async ()=> duzeltUrunStogu(btn.dataset.stockFix);
-    });
     uListe.querySelectorAll("[data-del]").forEach(btn=>{
       btn.onclick=async ()=>{
         if(confirm("Sil?")){
@@ -2396,24 +2378,6 @@ function renderUrunler(){
       };
     });
 
-    uListe.querySelectorAll('[data-count-field]').forEach(btn=>{
-      btn.onclick=async ()=> updateUrunSayiAlani(btn.dataset.countId, btn.dataset.countField);
-    });
-
-    uListe.querySelectorAll("[data-count-clear]").forEach(btn=>{
-      btn.onclick=async ()=>{
-        const id = btn.dataset.countClear;
-        const u = URUNLER.find(x => String(x.id) === String(id));
-        if(!u) return;
-        if(!getUrunSayiDuzeltme(id)) return showToast("Silinecek sayı düzeltmesi yok", "info");
-        if(!confirm(`${u.ad} için manuel satılan/iade/kalan düzeltmesi silinsin mi?`)) return;
-        const oldRec = {...u, sayi_duzeltme_eski: getUrunSayiDuzeltme(id)};
-        await logAction('urunler', 'COUNT_ADJUST_CLEAR', id, oldRec);
-        clearUrunSayiDuzeltme(id);
-        renderUrunler();
-        showToast("Manuel sayı düzeltmesi silindi", "success");
-      };
-    });
 
     uListe.querySelectorAll("[data-edit]").forEach(btn=>{
       btn.onclick=()=>{
@@ -3221,15 +3185,17 @@ function renderStokHareketleri(){
 }
 function initOperationalControls(){
   const type=document.getElementById('stokIslemTur'),qty=document.getElementById('stokIslemMiktar');
+  const stockDate=document.getElementById('stokIslemTarih');
+  if(stockDate && !stockDate.value) stockDate.value=todayStr();
   if(type&&!type._bound){type._bound=true;type.onchange=()=>{if(qty)qty.placeholder=type.value==='sayim'?'Sayımda bulunan toplam stok':'Miktar';};}
   const search=document.getElementById('stokHareketAra');if(search&&!search._bound){search._bound=true;search.oninput=renderStokHareketleri;}
   const save=document.getElementById('stokIslemKaydet');
   if(save&&!save._bound){save._bound=true;save.onclick=async()=>{
-    const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim();
-    if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim')||!tamStokAdediMi(quantity))return showToast('Stok adedi tam sayı olmalı.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
+    const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim(),dateValue=document.getElementById('stokIslemTarih')?.value;
+    if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim')||!tamStokAdediMi(quantity))return showToast('Stok adedi tam sayı olmalı.','warning');if(!dateValue)return showToast('Hareket tarihi zorunludur.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
     const urun=URUNLER.find(u=>String(u.id)===String(urunId)),action=mode==='sayim'?'stok '+quantity+' olarak düzeltilecek':quantity+' '+(mode==='giris'?'giriş':'çıkış')+' yapılacak';
     if(!confirm((urun?.ad||'Ürün')+' için '+action+'. Onaylıyor musunuz?'))return;
-    save.disabled=true;try{const res=await supa.rpc('adjust_stock_transaction',{p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
+    save.disabled=true;try{const res=await supa.rpc('record_stock_transaction',{p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null,p_tarih:dateValue+'T12:00:00+03:00'});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
   };}
   const from=document.getElementById('virmanKaynak');if(from&&!from._bound){from._bound=true;from.onchange=fillOperationalSelects;}
   const transfer=document.getElementById('virmanKaydet');
