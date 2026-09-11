@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v43-stock-stability';
+const CACHE_NAME = 'pexura-v44-whole-unit-stock';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,7 @@ const ASSETS = [
   './style.css?v=41',
   './core.js',
   './stock-math.js?v=34',
-  './app.js?v=43',
+  './app.js?v=44',
   './pwa.js?v=25',
   './pdf-font.js',
   './manifest.json',

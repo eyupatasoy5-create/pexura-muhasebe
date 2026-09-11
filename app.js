@@ -2068,12 +2068,12 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
     kod: uKod.value,
     ad: uAd.value,
     birim: uBirim.value,
-    min_stok: toNum(uMin.value),
+    min_stok: stokAdedi(uMin.value),
     alis_fiyat: toNum(uAlis.value),
     satis_fiyat: toNum(uSatis.value),
     para_birimi: uPara.value,
     kdv_oran: toNum(uKdv.value),
-    stok_miktar: toNum(uStokManuel.value)
+    stok_miktar: stokAdedi(uStokManuel.value)
   };
 
   if(uploadedImageUrl) payload.resim_url = uploadedImageUrl;
@@ -2099,6 +2099,7 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
 
 const URUN_SAYI_DUZELTME_KEY = 'urunSayiDuzeltmeleri_v4';
 const stokAdedi = value => PexuraStockMath.quantity(value);
+const tamStokAdediMi = value => Number.isInteger(toNum(value));
 
 function getUrunSayiDuzeltmeleri(){
   try{ return JSON.parse(localStorage.getItem(URUN_SAYI_DUZELTME_KEY) || '{}') || {}; }catch(e){ return {}; }
@@ -2208,8 +2209,8 @@ async function duzeltUrunStogu(urunId){
   const u = URUNLER.find(x => String(x.id) === String(urunId));
   if(!u) return showToast('Ürün bulunamadı', 'error');
   const real = getUrunGercekSatisIadeOzet(urunId);
-  const netSatilan = Math.max(0, real.satilan - real.iade);
-  const mevcutToplam = toNum(u.toplam_stok) || Math.max(0, toNum(u.stok_miktar) + netSatilan);
+  const netSatilan = Math.max(0, stokAdedi(real.satilan - real.iade));
+  const mevcutToplam = stokAdedi(u.toplam_stok) || Math.max(0, stokAdedi(toNum(u.stok_miktar) + netSatilan));
   const val = prompt(
     `${u.ad} için depoya giren TOPLAM stok miktarını yazın.\n\n` +
     `Faturalardan bulunan: Net satılan ${netSatilan} / İade ${real.iade}\n` +
@@ -2218,8 +2219,8 @@ async function duzeltUrunStogu(urunId){
   );
   if(val === null) return;
   const toplam = toNum(val);
-  if(!Number.isFinite(toplam) || toplam < 0) return showToast('Geçerli bir toplam stok girin', 'warning');
-  const kalan = toplam - netSatilan;
+  if(!Number.isFinite(toplam) || toplam < 0 || !tamStokAdediMi(toplam)) return showToast('Toplam stok tam sayı olmalı', 'warning');
+  const kalan = stokAdedi(toplam - netSatilan);
   if(kalan < 0) return showToast(`Toplam stok yetersiz. Hesaplanan kalan: ${kalan}`, 'warning');
 
   const oldRec = {...u};
@@ -2243,6 +2244,7 @@ function validateUrunSayilari(data){
   if(kalan < 0) return { ok:false, msg:'Kalan negatif olamaz' };
   if(toNum(data.toplam_stok) && kalan > toNum(data.toplam_stok)) return { ok:false, msg:`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toNum(data.toplam_stok)}` };
   if(!Number.isFinite(satilan) || !Number.isFinite(iade) || !Number.isFinite(kalan)) return { ok:false, msg:'Geçerli bir sayı girin' };
+  if(!Number.isInteger(satilan) || !Number.isInteger(iade) || !Number.isInteger(kalan)) return { ok:false, msg:'Stok sayıları tam sayı olmalı' };
   return { ok:true };
 }
 
@@ -2290,8 +2292,8 @@ async function updateUrunSayiAlani(urunId, field){
   );
   if(val === null) return;
 
-  const girilen = Math.max(0, stokAdedi(val));
-  if(!Number.isFinite(girilen)) return showToast('Geçerli bir sayı girin', 'warning');
+  const girilen = toNum(val);
+  if(!Number.isFinite(girilen) || !tamStokAdediMi(girilen)) return showToast('Stok sayısı tam sayı olmalı', 'warning');
 
   const yeni = {
     satilan: Math.max(0, toNum(mevcut.satilan)),
@@ -2527,7 +2529,7 @@ document.getElementById('kalemEkleBtn').onclick=()=>{
 
   const miktar=toNum(kMiktar.value);
   const fiyat=toNum(kFiyat.value);
-  if(miktar<=0 || fiyat<0) return showToast("Miktar>0 ve fiyat>=0 olmalı","warning");
+  if(miktar<=0 || !tamStokAdediMi(miktar) || fiyat<0) return showToast("Ürün adedi tam sayı ve 0'dan büyük olmalı; fiyat küsuratlı olabilir.","warning");
 
   // stok yetersiz kontrol: aynı üründen sepette varsa toplamı da hesaba kat
   if(normalizeTip(fTip.value)==='satis'){
@@ -3224,7 +3226,7 @@ function initOperationalControls(){
   const save=document.getElementById('stokIslemKaydet');
   if(save&&!save._bound){save._bound=true;save.onclick=async()=>{
     const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim();
-    if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim'))return showToast('Geçerli bir miktar girin.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
+    if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim')||!tamStokAdediMi(quantity))return showToast('Stok adedi tam sayı olmalı.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
     const urun=URUNLER.find(u=>String(u.id)===String(urunId)),action=mode==='sayim'?'stok '+quantity+' olarak düzeltilecek':quantity+' '+(mode==='giris'?'giriş':'çıkış')+' yapılacak';
     if(!confirm((urun?.ad||'Ürün')+' için '+action+'. Onaylıyor musunuz?'))return;
     save.disabled=true;try{const res=await supa.rpc('adjust_stock_transaction',{p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
@@ -3251,7 +3253,7 @@ function productOptionsV27(excludeId=''){
 function addBatchStockRowV27(values={}){
   const box=document.getElementById('topluStokSatirlar');if(!box)return;
   const row=document.createElement('div');row.className='multi-stock-row';
-  row.innerHTML='<select class="batch-product" aria-label="Toplu stok ürünü">'+productOptionsV27()+'</select><select class="batch-mode" aria-label="İşlem türü"><option value="giris">Giriş</option><option value="cikis">Çıkış</option><option value="sayim">Sayım</option></select><input class="batch-qty" type="number" min="0" step="0.001" placeholder="Miktar"><button type="button" class="danger batch-remove">Kaldır</button>';
+  row.innerHTML='<select class="batch-product" aria-label="Toplu stok ürünü">'+productOptionsV27()+'</select><select class="batch-mode" aria-label="İşlem türü"><option value="giris">Giriş</option><option value="cikis">Çıkış</option><option value="sayim">Sayım</option></select><input class="batch-qty" type="number" min="0" step="1" inputmode="numeric" placeholder="Adet"><button type="button" class="danger batch-remove">Kaldır</button>';
   row.querySelector('.batch-product').value=values.product_id||'';row.querySelector('.batch-mode').value=values.mode||'giris';row.querySelector('.batch-qty').value=values.quantity||'';row.querySelector('.batch-remove').onclick=()=>{row.remove();};
   box.appendChild(row);
 }
@@ -3259,7 +3261,7 @@ function addAssemblyRowV27(values={}){
   const box=document.getElementById('birlesimBilesenler');if(!box)return;
   const output=document.getElementById('birlesimCiktiUrun')?.value||'';
   const row=document.createElement('div');row.className='multi-stock-row assembly-row';
-  row.innerHTML='<select class="assembly-product" aria-label="Bileşen ürün">'+productOptionsV27(output)+'</select><input class="assembly-qty" type="number" min="0.001" step="0.001" placeholder="Tüketilecek miktar"><button type="button" class="danger assembly-remove">Kaldır</button>';
+  row.innerHTML='<select class="assembly-product" aria-label="Bileşen ürün">'+productOptionsV27(output)+'</select><input class="assembly-qty" type="number" min="1" step="1" inputmode="numeric" placeholder="Tüketilecek adet"><button type="button" class="danger assembly-remove">Kaldır</button>';
   row.querySelector('.assembly-product').value=values.product_id||'';row.querySelector('.assembly-qty').value=values.quantity||'';row.querySelector('.assembly-remove').onclick=()=>{if(box.children.length<=2)return showToast('En az iki bileşen kalmalı.','warning');row.remove();};
   box.appendChild(row);
 }
@@ -3278,14 +3280,14 @@ function initMultiStockV27(){
   const batchSave=document.getElementById('topluStokKaydet');if(batchSave&&!batchSave._bound){batchSave._bound=true;batchSave.onclick=async()=>{
     const rows=[...document.querySelectorAll('#topluStokSatirlar .multi-stock-row')].map(r=>({product_id:r.querySelector('.batch-product').value,mode:r.querySelector('.batch-mode').value,quantity:toNum(r.querySelector('.batch-qty').value)})).filter(x=>x.product_id);
     const reason=document.getElementById('topluStokNeden')?.value,note=(document.getElementById('topluStokAciklama')?.value||'').trim();
-    if(!rows.length)return showToast('En az bir ürün satırı doldurun.','warning');if(rows.some(x=>x.quantity<0||(!x.quantity&&x.mode!=='sayim')))return showToast('Tüm satırlara geçerli miktar girin.','warning');if(new Set(rows.map(x=>x.product_id)).size!==rows.length)return showToast('Aynı ürünü birden fazla satırda seçmeyin.','warning');if(!reason)return showToast('Ortak işlem nedeni zorunludur.','warning');
+    if(!rows.length)return showToast('En az bir ürün satırı doldurun.','warning');if(rows.some(x=>x.quantity<0||(!x.quantity&&x.mode!=='sayim')||!tamStokAdediMi(x.quantity)))return showToast('Tüm stok adetleri tam sayı olmalı.','warning');if(new Set(rows.map(x=>x.product_id)).size!==rows.length)return showToast('Aynı ürünü birden fazla satırda seçmeyin.','warning');if(!reason)return showToast('Ortak işlem nedeni zorunludur.','warning');
     if(!confirm(rows.length+' ürünün stoğu tek işlemde güncellenecek. Onaylıyor musunuz?'))return;
     batchSave.disabled=true;try{const res=await supa.rpc('batch_adjust_stock_transaction',{p_items:rows,p_reason:reason,p_note:note||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();refreshAssemblyOptionsV27();renderUrunler();renderStokHareketleri();renderDash();showToast(rows.length+' stok işlemi birlikte kaydedildi.','success');}catch(e){showToast(e?.message||'Toplu stok işlemi kaydedilemedi; hiçbir satır uygulanmadı.','error');}finally{batchSave.disabled=false;}
   };}
   const assemblySave=document.getElementById('birlesimKaydet');if(assemblySave&&!assemblySave._bound){assemblySave._bound=true;assemblySave.onclick=async()=>{
     const outputId=document.getElementById('birlesimCiktiUrun')?.value,outputQty=toNum(document.getElementById('birlesimCiktiMiktar')?.value),reason=(document.getElementById('birlesimNeden')?.value||'').trim(),note=(document.getElementById('birlesimAciklama')?.value||'').trim();
     const components=[...document.querySelectorAll('#birlesimBilesenler .multi-stock-row')].map(r=>({product_id:r.querySelector('.assembly-product').value,quantity:toNum(r.querySelector('.assembly-qty').value)})).filter(x=>x.product_id);
-    if(!outputId)return showToast('Ortaya çıkacak ürünü seçin.','warning');if(outputQty<=0)return showToast('Üretilecek miktar sıfırdan büyük olmalı.','warning');if(components.length<2||new Set(components.map(x=>x.product_id)).size<2)return showToast('En az iki farklı bileşen seçin.','warning');if(components.some(x=>x.quantity<=0))return showToast('Tüm bileşen miktarlarını girin.','warning');if(components.some(x=>x.product_id===outputId))return showToast('Çıktı ürünü bileşen olarak seçilemez.','warning');if(!reason)return showToast('Birleştirme nedeni veya reçete adı zorunludur.','warning');
+    if(!outputId)return showToast('Ortaya çıkacak ürünü seçin.','warning');if(outputQty<=0||!tamStokAdediMi(outputQty))return showToast('Üretilecek adet tam sayı olmalı.','warning');if(components.length<2||new Set(components.map(x=>x.product_id)).size<2)return showToast('En az iki farklı bileşen seçin.','warning');if(components.some(x=>x.quantity<=0||!tamStokAdediMi(x.quantity)))return showToast('Tüm bileşen adetleri tam sayı olmalı.','warning');if(components.some(x=>x.product_id===outputId))return showToast('Çıktı ürünü bileşen olarak seçilemez.','warning');if(!reason)return showToast('Birleştirme nedeni veya reçete adı zorunludur.','warning');
     const out=URUNLER.find(u=>String(u.id)===String(outputId));if(!confirm(components.length+' bileşen stoktan düşülecek ve '+outputQty+' '+(out?.ad||'ürün')+' stoğa eklenecek. Onaylıyor musunuz?'))return;
     assemblySave.disabled=true;try{const res=await supa.rpc('assemble_stock_transaction',{p_output_product_id:outputId,p_output_quantity:outputQty,p_components:components,p_reason:reason,p_note:note||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();refreshAssemblyOptionsV27();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('birlesimCiktiMiktar').value='';document.getElementById('birlesimAciklama').value='';showToast('Ürün birleştirme başarıyla tamamlandı. Yeni stok: '+res.data.new_stock,'success');}catch(e){showToast(e?.message||'Birleştirme yapılamadı; hiçbir stok değişmedi.','error');}finally{assemblySave.disabled=false;}
   };}
@@ -4010,7 +4012,7 @@ window.cpSepeteEkle = () => {
   const adet = toNum(document.getElementById("cpUrunAdet").value);
   const fiyat = toNum(document.getElementById("cpUrunFiyat").value);
   const urun = URUNLER.find(u=>u.id==uId);
-  if(!urun || adet<=0) return showToast("Ürün ve adet seçmelisin","warning");
+  if(!urun || adet<=0 || !tamStokAdediMi(adet)) return showToast("Ürün seçin ve tam sayı adet girin.","warning");
 
   const islemTipi = document.getElementById('cpIslemTipi')?.value || 'satis';
 

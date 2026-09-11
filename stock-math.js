@@ -1,9 +1,9 @@
 (function(root){
   'use strict';
   function num(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
-  // Stok adedi para gibi değildir; yine de kayan nokta artıkları kullanıcıya
-  // gösterilmemeli veya veritabanına yazılmamalıdır.
-  function quantity(v){ return Math.round((num(v) + Number.EPSILON) * 1000) / 1000; }
+  // Bu uygulamada ürünler adetle satılır. Stok sayıları tam sayıdır; fiyatlar
+  // ayrıca para hesaplarında iki ondalık hassasiyetle işlenmeye devam eder.
+  function quantity(v){ return Math.round(num(v)); }
   function summary(total,grossSold,returns){
     const toplam=Math.max(0,quantity(total));
     const brut=Math.max(0,quantity(grossSold));

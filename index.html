@@ -458,7 +458,7 @@
           <label>Ürün Seçimi</label>
           <select id="kUrun"></select>
           <div class="row">
-            <input id="kMiktar" type="number" min="0.001" step="0.001" placeholder="Miktar" inputmode="decimal"/>
+            <input id="kMiktar" type="number" min="1" step="1" placeholder="Adet" inputmode="numeric"/>
             <input id="kFiyat" type="number" min="0" step="0.01" placeholder="Fiyat" inputmode="decimal"/>
           </div>
           <div class="row">
@@ -577,8 +577,8 @@
             <input id="uSatis" type="number" min="0" step="0.01" placeholder="Satış Fiyat"/>
           </div>
           <div class="row">
-            <input id="uMin" type="number" min="0" step="0.001" placeholder="Min Stok"/>
-            <input id="uStokManuel" type="number" min="0" step="0.001" placeholder="Başlangıç Stok"/>
+            <input id="uMin" type="number" min="0" step="1" placeholder="Min Stok" inputmode="numeric"/>
+            <input id="uStokManuel" type="number" min="0" step="1" placeholder="Başlangıç Stok" inputmode="numeric"/>
           </div>
           <input id="uKdv" type="number" min="0" max="100" step="0.01" value="0" placeholder="KDV"/>
           <button class="primary" style="width:100%; margin-top:10px;" id="uKaydetBtn">Kaydet</button>
@@ -596,7 +596,7 @@
               <option value="cikis">Stok Çıkışı</option>
               <option value="sayim">Sayım Sonucu</option>
             </select>
-            <input id="stokIslemMiktar" type="number" min="0" step="0.001" inputmode="decimal" placeholder="Miktar">
+            <input id="stokIslemMiktar" type="number" min="0" step="1" inputmode="numeric" placeholder="Adet">
             <select id="stokIslemNeden" aria-label="Stok işlem nedeni">
               <option value="">Neden seçin</option>
               <option>Mal kabul</option><option>Depolar arası düzeltme</option><option>Fire / hasar</option>
@@ -629,7 +629,7 @@
             <div class="stock-advanced-body">
               <div class="stock-meta-grid">
                 <select id="birlesimCiktiUrun"><option value="">Ortaya çıkan ürünü seçin</option></select>
-                <input id="birlesimCiktiMiktar" type="number" min="0.001" step="0.001" placeholder="Üretilecek miktar">
+                <input id="birlesimCiktiMiktar" type="number" min="1" step="1" inputmode="numeric" placeholder="Üretilecek adet">
                 <input id="birlesimNeden" maxlength="120" placeholder="Birleştirme nedeni / reçete adı">
               </div>
               <h3>Bileşenler</h3>
@@ -1018,7 +1018,7 @@
           </div>
           <div>
             <label>Adet</label>
-            <input id="cpUrunAdet" type="number" inputmode="numeric" value="1">
+            <input id="cpUrunAdet" type="number" min="1" step="1" inputmode="numeric" value="1">
           </div>
         </div>
 
@@ -1115,7 +1115,7 @@
 <script src="stock-math.js?v=34"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>
