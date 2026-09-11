@@ -2098,6 +2098,7 @@ document.getElementById('uKaydetBtn').onclick = async ()=>{
 };
 
 const URUN_SAYI_DUZELTME_KEY = 'urunSayiDuzeltmeleri_v4';
+const stokAdedi = value => PexuraStockMath.quantity(value);
 
 function getUrunSayiDuzeltmeleri(){
   try{ return JSON.parse(localStorage.getItem(URUN_SAYI_DUZELTME_KEY) || '{}') || {}; }catch(e){ return {}; }
@@ -2109,13 +2110,12 @@ function getUrunSayiDuzeltme(urunId){
 
 function setUrunSayiDuzeltme(urunId, data){
   const all = getUrunSayiDuzeltmeleri();
-  const toplam_stok = Math.max(0, toNum(data.toplam_stok) || (toNum(data.satilan) + toNum(data.kalan)));
-  let satilan = Math.max(0, toNum(data.satilan));
-  const iade = Math.max(0, toNum(data.iade));
-  let kalan = Math.max(0, toNum(data.kalan));
-  // Ana kilit: Kalan stok, belirlenen toplam stoktan büyük kaydedilemez.
-  if(kalan > toplam_stok) kalan = toplam_stok;
-  satilan = Math.max(0, toplam_stok - kalan);
+  const satilan = Math.max(0, stokAdedi(data.satilan));
+  const iade = Math.max(0, stokAdedi(data.iade));
+  const kalan = Math.max(0, stokAdedi(data.kalan));
+  const toplam_stok = Math.max(0, stokAdedi(data.toplam_stok) || stokAdedi(satilan + kalan));
+  // Kullanıcının elle girdiği üç değer birbirini değiştirmez. Bu kayıt sadece
+  // görünüm/denetim için saklanır; otomatik stok hareketi oluşturmaz.
   all[String(urunId)] = { satilan, iade, kalan, toplam_stok, updated_at: nowLocalDTWithSeconds() };
   localStorage.setItem(URUN_SAYI_DUZELTME_KEY, JSON.stringify(all));
 }
@@ -2134,11 +2134,11 @@ function getUrunGercekSatisIadeOzet(urunId){
     if(String(k.urun_id) !== String(urunId)) return;
     const f = faturaMap.get(String(k.fatura_id));
     const tip = normalizeTip(f?.tip || 'satis');
-    const miktar = toNum(k.miktar);
-    if(tip === 'iade') iade += miktar;
-    else satilan += miktar;
+    const miktar = stokAdedi(k.miktar);
+    if(tip === 'iade') iade = stokAdedi(iade + miktar);
+    else satilan = stokAdedi(satilan + miktar);
   });
-  return { satilan, iade, netSatilan: satilan - iade };
+  return { satilan, iade, netSatilan: stokAdedi(satilan - iade) };
 }
 
 // Ürün bazlı gerçek kâr: liste fiyatından değil, müşteriye kesilen fatura kalemlerindeki
@@ -2156,7 +2156,7 @@ function getUrunFaturaKari(urunId){
     const satirKar = (gercekSatisFiyati - alisFiyati) * miktar;
     kar += (tip === 'iade') ? -satirKar : satirKar;
   });
-  return kar;
+  return Number(kar.toFixed(2));
 }
 
 function getUrunSatisIadeOzet(urunId){
@@ -2170,18 +2170,15 @@ function getUrunSatisIadeOzet(urunId){
   }
   const manual = getUrunSayiDuzeltme(urunId);
   if(manual){
-    const toplamLimit = Math.max(0, toNum(manual.toplam_stok) || (toNum(manual.satilan) + toNum(manual.kalan)));
-    let satilan = Math.max(0, toNum(manual.satilan));
-    let iade = Math.max(0, toNum(manual.iade));
-    let kalan = Math.max(0, toNum(manual.kalan));
-    // Güvenlik kilidi: Kalan hiçbir koşulda toplam stok limitini geçemez.
-    if(kalan > toplamLimit) kalan = toplamLimit;
-    if(satilan + kalan !== toplamLimit) satilan = Math.max(0, toplamLimit - kalan);
+    const satilan = Math.max(0, stokAdedi(manual.satilan));
+    const iade = Math.max(0, stokAdedi(manual.iade));
+    const kalan = Math.max(0, stokAdedi(manual.kalan));
+    const toplamLimit = Math.max(0, stokAdedi(manual.toplam_stok) || stokAdedi(satilan + kalan));
     return { toplam_stok: toplamLimit, satilan, iade, kalan, netSatilan: satilan, manual:true };
   }
   const kalan = Math.max(0, toNum(u?.stok_miktar));
-  const satilanNet = Math.max(0, real.satilan - real.iade);
-  const toplam_stok = Math.max(0, satilanNet + kalan);
+  const satilanNet = Math.max(0, stokAdedi(real.satilan - real.iade));
+  const toplam_stok = Math.max(0, stokAdedi(satilanNet + kalan));
   return { toplam_stok, satilan: satilanNet, iade: real.iade, kalan, netSatilan: satilanNet };
 }
 
@@ -2252,14 +2249,13 @@ function validateUrunSayilari(data){
 async function applyUrunSayiDuzeltme(urunId, yeni){
   const u = URUNLER.find(x => String(x.id) === String(urunId));
   if(!u) return showToast('Ürün bulunamadı', 'error');
-  const toplam_stok = Math.max(0, toNum(yeni.toplam_stok) || (toNum(yeni.satilan) + toNum(yeni.kalan)));
+  const toplam_stok = Math.max(0, stokAdedi(yeni.toplam_stok) || stokAdedi(toNum(yeni.satilan) + toNum(yeni.kalan)));
   const duzgun = {
-    satilan: Math.max(0, toNum(yeni.satilan)),
-    iade: Math.max(0, toNum(yeni.iade)),
-    kalan: Math.min(toplam_stok, Math.max(0, toNum(yeni.kalan))),
+    satilan: Math.max(0, stokAdedi(yeni.satilan)),
+    iade: Math.max(0, stokAdedi(yeni.iade)),
+    kalan: Math.max(0, stokAdedi(yeni.kalan)),
     toplam_stok
   };
-  duzgun.satilan = Math.max(0, toplam_stok - duzgun.kalan);
   const kontrol = validateUrunSayilari(duzgun);
   if(!kontrol.ok) return showToast(kontrol.msg, 'warning');
   const oldRec = {...u, sayi_duzeltme_eski: getUrunSayiDuzeltme(urunId)};
@@ -2288,13 +2284,13 @@ async function updateUrunSayiAlani(urunId, field){
 ` +
     `Mevcut: Satılan ${mevcut.satilan} / İade ${mevcut.iade} / Kalan ${mevcut.kalan}
 ` +
-    `Kural: Satılan artarsa hem iadeden hem kalandan düşer, satılan düşerse kalan artar. ` +
-    `İade artarsa kalan artar. Kalan hiçbir zaman toplam stok (${toplamStok}) üstüne çıkamaz.`,
+    `Bu alan yalnızca sizin girdiğiniz değeri değiştirir; diğer sayaçlara otomatik müdahale edilmez. ` +
+    `Kalan stok, toplam stok (${toplamStok}) üstüne çıkamaz.`,
     String(mevcut[field])
   );
   if(val === null) return;
 
-  const girilen = Math.max(0, toNum(val));
+  const girilen = Math.max(0, stokAdedi(val));
   if(!Number.isFinite(girilen)) return showToast('Geçerli bir sayı girin', 'warning');
 
   const yeni = {
@@ -2304,37 +2300,9 @@ async function updateUrunSayiAlani(urunId, field){
     toplam_stok: toplamStok
   };
 
-  if(field === 'satilan'){
-    // Yeni mantık: Satılan artarsa hem KALAN'dan hem de varsa İADE'den düşer.
-    // Satılan düşerse KALAN geri artar. Kalan hiçbir zaman toplam stok üstüne çıkamaz.
-    const eskiSatilan = Math.max(0, toNum(yeni.satilan));
-    const fark = girilen - eskiSatilan;
-    if(girilen > toplamStok) return showToast(`Satılan toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
-    if(fark > 0 && fark > yeni.kalan) return showToast(`Satılan bu kadar artırılamaz. Kalan stok: ${yeni.kalan}`, 'warning');
-    yeni.satilan = girilen;
-    if(fark > 0){
-      yeni.kalan = Math.max(0, yeni.kalan - fark);
-      yeni.iade = Math.max(0, yeni.iade - fark);
-    }else if(fark < 0){
-      yeni.kalan = Math.min(toplamStok, yeni.kalan + Math.abs(fark));
-    }
-  } else if(field === 'iade'){
-    // İade değişimi direkt SATILAN'dan düşer/geri ekler, KALAN'ı ters yönde ayarlar.
-    // Örnek: Satılan 10, İade 0, Kalan 5 iken iade 2 yapılırsa => Satılan 8, İade 2, Kalan 7.
-    // İade azaltılırsa da satılan artar, kalan azalır. Stok toplamı sabit kalır.
-    const eskiIade = Math.max(0, toNum(yeni.iade));
-    const fark = girilen - eskiIade;
-    if(fark > yeni.satilan) return showToast(`İade bu kadar artırılamaz. Satılan en fazla ${yeni.satilan} adet azaltılabilir.`, 'warning');
-    if(fark < 0 && Math.abs(fark) > yeni.kalan) return showToast(`İade bu kadar düşürülemez. Kalan stok eksiye düşer.`, 'warning');
-    yeni.iade = girilen;
-    yeni.satilan = Math.max(0, yeni.satilan - fark);
-    yeni.kalan = Math.min(toplamStok, Math.max(0, yeni.kalan + fark));
-  } else if(field === 'kalan'){
-    // Kalan elle değişirse satılan ters yönde ayarlanır; kalan toplam stok üstüne çıkamaz.
-    if(girilen > toplamStok) return showToast(`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
-    yeni.kalan = girilen;
-    yeni.satilan = toplamStok - girilen;
-  }
+  // Elle düzenlenen alan yalnızca kullanıcının verdiği değeri değiştirir.
+  // Diğer stok sayaçları otomatik olarak yeniden hesaplanmaz.
+  yeni[field] = girilen;
 
   if(yeni.kalan < 0) return showToast('Kalan stok eksiye düşemez', 'warning');
   if(yeni.kalan > toplamStok) return showToast(`Kalan stok toplam stoktan fazla olamaz. En fazla: ${toplamStok}`, 'warning');
