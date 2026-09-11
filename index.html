@@ -598,6 +598,8 @@
             </select>
             <input id="stokIslemMiktar" type="number" min="0" step="1" inputmode="numeric" placeholder="Adet">
             <input id="stokIslemTarih" type="date" aria-label="Hareket tarihi">
+            <select id="stokTedarikci" aria-label="Tedarikçi"><option value="">Tedarikçi (isteğe bağlı)</option></select>
+            <input id="stokBirimMaliyet" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Birim alış maliyeti">
             <select id="stokIslemNeden" aria-label="Stok işlem nedeni">
               <option value="">Neden seçin</option>
               <option>Mal kabul</option><option>Tedarikçi teslimatı</option><option>Depolar arası düzeltme</option><option>Fire / hasar</option>
@@ -647,6 +649,28 @@
           <div id="stokIslemOzet" class="filter-summary"></div>
           <div class="filter-bar"><input id="stokHareketAra" placeholder="Ürün, neden veya açıklama ara..."></div>
           <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>Ürün</th><th>İşlem</th><th>Değişim</th><th>Sonuç</th><th>Açıklama</th></tr></thead><tbody id="stokHareketListe"></tbody></table></div>
+
+          <details class="stock-advanced-card">
+            <summary><strong>Stok Kartı / Ürün Ekstresi</strong><span class="muted"> Seçili ürünün giriş, satış, iade ve sayım geçmişi</span></summary>
+            <div class="stock-advanced-body">
+              <select id="stokKartUrun"><option value="">Ürün seçin</option></select>
+              <div id="stokKartOzet" class="filter-summary"></div>
+              <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>İşlem</th><th>Değişim</th><th>İşlem Sonrası</th><th>Açıklama</th></tr></thead><tbody id="stokKartListe"></tbody></table></div>
+            </div>
+          </details>
+
+          <details class="stock-advanced-card">
+            <summary><strong>Sayım Oturumu</strong><span class="muted"> Sayılan stokları oturum notuyla kaydedin</span></summary>
+            <div class="stock-advanced-body stock-meta-grid">
+              <input id="sayimOturumAdi" maxlength="120" placeholder="Sayım adı / depo bölümü">
+              <input id="sayimOturumTarih" type="date" aria-label="Sayım tarihi">
+              <select id="sayimOturumUrun"><option value="">Ürün seçin</option></select>
+              <input id="sayimOturumAdet" type="number" min="0" step="1" inputmode="numeric" placeholder="Sayılan adet">
+              <input id="sayimOturumNot" maxlength="250" placeholder="Sayım notu">
+              <button id="sayimOturumKaydet" type="button" class="primary">Sayımı Kaydet</button>
+              <div id="sayimOturumOzet" class="filter-summary"></div>
+            </div>
+          </details>
         </div>
 </div>
 
@@ -740,6 +764,13 @@
           <input id="virmanAciklama" maxlength="250" placeholder="Virman açıklaması">
           <button id="virmanKaydet" type="button" class="primary" style="width:100%;margin-top:10px">Virmanı Kaydet</button>
           <small class="muted">Yalnızca aynı para birimindeki hesaplar arasında aktarım yapılır.</small>
+          <hr style="border-color: rgba(255,255,255,0.1); margin:20px 0;">
+          <h2>Kasa Mutabakatı</h2>
+          <select id="mutabakatHesap"></select>
+          <input id="mutabakatTarih" type="date" aria-label="Mutabakat tarihi">
+          <input id="mutabakatSayılan" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Fiilen sayılan bakiye">
+          <input id="mutabakatNot" maxlength="250" placeholder="Açıklama / fark nedeni">
+          <button id="mutabakatKaydet" type="button" class="warning" style="width:100%;margin-top:10px">Mutabakatı Kaydet</button>
         </div>
 
         <div class="card" style="grid-column: span 7;">
@@ -753,6 +784,8 @@
             <button type="button" onclick="clearHareketFilters()">Temizle</button>
           </div>
           <table class="responsive-table"><tbody id="hareketListe"></tbody></table>
+          <h2 style="margin-top:20px">Son Kasa Mutabakatları</h2>
+          <div class="table-scroll"><table class="responsive-table"><thead><tr><th>Tarih</th><th>Hesap</th><th>Sistem</th><th>Sayılan</th><th>Fark</th><th>Not</th></tr></thead><tbody id="mutabakatListe"></tbody></table></div>
         </div>
       </div>
     </section>
@@ -1116,7 +1149,7 @@
 <script src="stock-math.js?v=34"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46.2"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>

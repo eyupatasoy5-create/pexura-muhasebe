@@ -29,7 +29,7 @@ let EDIT_FATURA_ID = null;
 let CURRENT_IMG_URL = null;
 let IS_IMG_REMOVED = false;
 
-let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[], STOK_LOGS=[], SYSTEM_LOGS=[], NOTES=[];
+let CARILER=[], URUNLER=[], HESAPLAR=[], HAREKETLER=[], GG=[], FATURALAR=[], TUM_KALEMLER=[], STOK_LOGS=[], SYSTEM_LOGS=[], NOTES=[], MUTABAKATLAR=[];
 let FATURA_SATIRLAR=[];
 
 // Ürün listesi arama/sıralama
@@ -544,6 +544,7 @@ async function fetchAll(){
       fetchGG(),
       fetchFaturalar(),
       fetchStokLoglari(),
+      fetchMutabakatlar(),
       fetchSystemLogs()
     ]);
     await fetchTumKalemler();
@@ -553,6 +554,7 @@ async function fetchAll(){
   generateMissingZReports();
   renderAll();
   runStartupAlerts(); // madde 12
+  void maybeAutomaticBackup();
 }
 
 async function fetchTumKalemler() {
@@ -562,15 +564,21 @@ async function fetchTumKalemler() {
 
 async function fetchStokLoglari(){
   try{
-    // Yeni hareketlerde ayrıca tarih tutulur. Eski kurulumlarda bu alan
-    // bulunmayabileceği için sorgu her zaman var olan created_at ile sıralanır.
-    const { data, error } = await supa.from('stok_hareketleri').select('*').order('created_at',{ascending:false});
+    const { data, error } = await supa.from('stok_hareketleri').select('*').order('tarih',{ascending:false});
     if(error) throw error;
     STOK_LOGS = data || [];
   }catch(e){
     STOK_LOGS = [];
     console.warn('stok_hareketleri okunamadi:', e?.message || e);
   }
+}
+
+async function fetchMutabakatlar(){
+  try{
+    const {data,error}=await supa.from('kasa_mutabakatlari').select('*').order('tarih',{ascending:false}).limit(30);
+    if(error) throw error;
+    MUTABAKATLAR=data||[];
+  }catch(e){ MUTABAKATLAR=[]; }
 }
 
 async function fetchSystemLogs(){
@@ -2985,6 +2993,18 @@ function renderHesaplar(){
   });
 }
 
+function hesapBeklenenBakiye(hesapId){
+  const h=HESAPLAR.find(x=>String(x.id)===String(hesapId));
+  let total=toNum(h?.acilis_bakiye);
+  (HAREKETLER||[]).filter(x=>String(x.hesap_id)===String(hesapId)).forEach(x=>{total+=(x.tur==='odeme'?-1:1)*toNum(x.tutar);});
+  return Number(total.toFixed(2));
+}
+
+function renderMutabakatlar(){
+  const body=document.getElementById('mutabakatListe');if(!body)return;
+  body.innerHTML=(MUTABAKATLAR||[]).length?MUTABAKATLAR.map(x=>{const h=HESAPLAR.find(a=>String(a.id)===String(x.hesap_id)),diff=toNum(x.fark);return '<tr><td>'+formatTRDateTime(x.tarih)+'</td><td>'+escapeHtml(h?.ad||'-')+'</td><td>'+fmt(x.sistem_bakiye,h?.para_birimi||'USD')+'</td><td>'+fmt(x.sayilan_bakiye,h?.para_birimi||'USD')+'</td><td style="font-weight:700;color:'+(diff===0?'#4ade80':'#f87171')+'">'+fmt(diff,h?.para_birimi||'USD')+'</td><td>'+escapeHtml(x.notlar||'-')+'</td></tr>';}).join(''):'<tr><td colspan="6" class="muted">Henüz mutabakat kaydı yok.</td></tr>';
+}
+
 function renderHareketler(){
   hareketListe.innerHTML="";
   const q = (document.getElementById('hareketSearch')?.value || '').toLocaleLowerCase('tr').trim();
@@ -3013,17 +3033,18 @@ function renderHareketler(){
       <td data-label="Açıklama">${h.aciklama || ''}</td>
       <td data-label="İşlem">
         <button class="warning" style="padding:4px 8px; font-size:11px;" data-edit="${h.id}">Düzenle</button>
-        <button class="danger" style="padding:4px 8px; font-size:11px;" data-del="${h.id}">Sil</button>
+        ${h.geri_alindi?'<span class="muted">Geri alındı</span>':'<button class="danger" style="padding:4px 8px; font-size:11px;" data-cash-undo="'+h.id+'">Geri Al</button>'}
       </td>`;
     hareketListe.appendChild(tr);
   });
 
-  hareketListe.querySelectorAll("[data-del]").forEach(btn => {
+  hareketListe.querySelectorAll("[data-cash-undo]").forEach(btn => {
     btn.onclick = async () => {
-      if(!confirm("Bu hareketi silmek istiyor musun?")) return;
-      await supa.from("kasa_hareketler").delete().eq("id", btn.dataset.del);
+      if(!confirm("Bu kasa hareketi ters kayıtla geri alınacak. Onaylıyor musunuz?")) return;
+      const {error}=await supa.rpc('reverse_cash_transaction',{p_movement_id:btn.dataset.cashUndo,p_reason:'Kullanıcı geri alma işlemi'});
+      if(error)return showToast(error.message,'error');
       await fetchHareketler(); renderHareketler(); renderDash();
-      showToast("Silindi.", "success");
+      showToast("Kasa hareketi ters kayıtla geri alındı.", "success");
     };
   });
 
@@ -3161,6 +3182,25 @@ function fillOperationalSelects(){
     stockSel.innerHTML='<option value="">Ürün seçin</option>'+URUNLER.slice().sort((a,b)=>String(a.ad||'').localeCompare(String(b.ad||''),'tr')).map(u=>'<option value="'+u.id+'">'+escapeHtml(u.ad||'-')+' — stok: '+toNum(u.stok_miktar)+'</option>').join('');
     if(URUNLER.some(u=>String(u.id)===String(current))) stockSel.value=current;
   }
+  const supplierSel=document.getElementById('stokTedarikci');
+  if(supplierSel){
+    const current=supplierSel.value;
+    const suppliers=(CARILER||[]).filter(c=>c.tur==='tedarikci').sort((a,b)=>String(a.ad||'').localeCompare(String(b.ad||''),'tr'));
+    supplierSel.innerHTML='<option value="">Tedarikçi (isteğe bağlı)</option>'+suppliers.map(c=>'<option value="'+c.id+'">'+escapeHtml(c.ad||'-')+'</option>').join('');
+    if(suppliers.some(c=>String(c.id)===String(current))) supplierSel.value=current;
+  }
+  ['stokKartUrun','sayimOturumUrun'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel)return;
+    const current=sel.value;
+    sel.innerHTML='<option value="">Ürün seçin</option>'+URUNLER.slice().sort((a,b)=>String(a.ad||'').localeCompare(String(b.ad||''),'tr')).map(u=>'<option value="'+u.id+'">'+escapeHtml(u.ad||'-')+'</option>').join('');
+    if(URUNLER.some(u=>String(u.id)===String(current)))sel.value=current;
+  });
+  const reconcileSel=document.getElementById('mutabakatHesap');
+  if(reconcileSel){
+    const current=reconcileSel.value;
+    reconcileSel.innerHTML='<option value="">Hesap seçin</option>'+HESAPLAR.map(h=>'<option value="'+h.id+'">'+escapeHtml(h.ad)+' ('+escapeHtml(h.para_birimi||'USD')+')</option>').join('');
+    if(HESAPLAR.some(h=>String(h.id)===String(current)))reconcileSel.value=current;
+  }
   const from=document.getElementById('virmanKaynak'),to=document.getElementById('virmanHedef');
   if(from&&to){
     const oldFrom=from.value,oldTo=to.value;
@@ -3177,11 +3217,47 @@ function renderStokHareketleri(){
   const q=(document.getElementById('stokHareketAra')?.value||'').trim().toLocaleLowerCase('tr');
   const products=new Map(URUNLER.map(u=>[String(u.id),u]));
   const cursor=new Map(URUNLER.map(u=>[String(u.id),toNum(u.stok_miktar)]));
-  const rows=(STOK_LOGS||[]).slice().sort(compareByNewest).map(log=>{const id=String(log.urun_id||''),after=cursor.get(id);cursor.set(id,toNum(after)-toNum(log.miktar_degisim));return{log,urun:products.get(id),after};}).filter(x=>!q||((x.urun?.ad||'')+' '+(x.log.tur||'')+' '+(x.log.aciklama||'')+' '+(x.log.kaynak||'')).toLocaleLowerCase('tr').includes(q)).slice(0,100);
+  const rows=(STOK_LOGS||[]).slice().sort(compareByNewest).map(log=>{const id=String(log.urun_id||''),calculatedAfter=cursor.get(id);cursor.set(id,toNum(calculatedAfter)-toNum(log.miktar_degisim));return{log,urun:products.get(id),after:log.stok_sonrasi!=null?toNum(log.stok_sonrasi):calculatedAfter};}).filter(x=>!q||((x.urun?.ad||'')+' '+(x.log.tur||'')+' '+(x.log.aciklama||'')+' '+(x.log.kaynak||'')).toLocaleLowerCase('tr').includes(q)).slice(0,100);
   const labels={giris:'Giriş',cikis:'Çıkış',sayim:'Sayım',fatura_satis:'Fatura Satış',fatura_alis:'Fatura Alış',fatura_iptal:'Fatura İptal',birlesim_tuketim:'Birleştirme Tüketim',birlesim_uretim:'Birleştirme Üretim'};
-  body.innerHTML=rows.length?rows.map(x=>{const d=toNum(x.log.miktar_degisim);return '<tr><td data-label="Tarih">'+formatTRDateTime(x.log.tarih||x.log.created_at)+'</td><td data-label="Ürün">'+escapeHtml(x.urun?.ad||'Silinmiş ürün')+'</td><td data-label="İşlem"><span class="tag">'+(labels[x.log.tur]||escapeHtml(x.log.tur||'-'))+'</span></td><td data-label="Değişim" style="color:'+(d>=0?'#4ade80':'#f87171')+';font-weight:700">'+(d>=0?'+':'')+d+'</td><td data-label="İşlem Sonrası">'+(Number.isFinite(x.after)?x.after:'-')+'</td><td data-label="Açıklama">'+escapeHtml(x.log.aciklama||x.log.kaynak||'-')+'</td></tr>';}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Stok hareketi bulunamadı.</td></tr>';
+  body.innerHTML=rows.length?rows.map(x=>{const d=toNum(x.log.miktar_degisim),undo=x.log.geri_alindi?'Geri alındı':(x.log.kaynak==='manuel'?'<button class="secondary" data-stock-undo="'+x.log.id+'">Geri Al</button>':'');return '<tr><td data-label="Tarih">'+formatTRDateTime(x.log.tarih)+'</td><td data-label="Ürün">'+escapeHtml(x.urun?.ad||'Silinmiş ürün')+'</td><td data-label="İşlem"><span class="tag">'+(labels[x.log.tur]||escapeHtml(x.log.tur||'-'))+'</span></td><td data-label="Değişim" style="color:'+(d>=0?'#4ade80':'#f87171')+';font-weight:700">'+(d>=0?'+':'')+d+'</td><td data-label="İşlem Sonrası">'+(Number.isFinite(x.after)?x.after:'-')+'</td><td data-label="Açıklama">'+escapeHtml(x.log.aciklama||x.log.kaynak||'-')+' '+undo+'</td></tr>';}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Stok hareketi bulunamadı.</td></tr>';
   const sum=document.getElementById('stokIslemOzet');if(sum)sum.textContent='Son '+rows.length+' hareket gösteriliyor. Fatura hareketleri otomatik, manuel hareketler neden bilgisiyle kaydedilir.';
   applyResponsiveTableLabels();
+  body.querySelectorAll('[data-stock-undo]').forEach(btn=>btn.onclick=async()=>{
+    if(!confirm('Bu stok hareketi ters kayıtla geri alınacak. Onaylıyor musunuz?'))return;
+    const {error}=await supa.rpc('reverse_stock_transaction',{p_movement_id:btn.dataset.stockUndo,p_reason:'Kullanıcı geri alma işlemi'});
+    if(error)return showToast(error.message,'error');
+    await Promise.all([fetchUrunler(),fetchStokLoglari()]);renderStokHareketleri();renderUrunler();showToast('Stok hareketi ters kayıtla geri alındı.','success');
+  });
+}
+
+function renderStokKarti(){
+  const productId=document.getElementById('stokKartUrun')?.value,body=document.getElementById('stokKartListe'),summary=document.getElementById('stokKartOzet');
+  if(!body)return;
+  if(!productId){body.innerHTML='<tr><td colspan="5" class="muted">Ürün seçin.</td></tr>';if(summary)summary.textContent='';return;}
+  const product=URUNLER.find(u=>String(u.id)===String(productId));
+  const rows=(STOK_LOGS||[]).filter(x=>String(x.urun_id)===String(productId)).sort(compareByNewest);
+  const incoming=rows.filter(x=>toNum(x.miktar_degisim)>0).reduce((a,x)=>a+toNum(x.miktar_degisim),0),outgoing=Math.abs(rows.filter(x=>toNum(x.miktar_degisim)<0).reduce((a,x)=>a+toNum(x.miktar_degisim),0));
+  const netProfit=getUrunFaturaKari(productId);
+  if(summary)summary.textContent=`Mevcut stok: ${toNum(product?.stok_miktar)} | Kayıtlı giriş: ${incoming} | Kayıtlı çıkış: ${outgoing} | Net fatura kârı: ${fmt(netProfit,product?.para_birimi||'USD')} | ${rows.length} hareket`;
+  body.innerHTML=rows.length?rows.map(x=>'<tr><td>'+formatTRDateTime(x.tarih)+'</td><td><span class="tag">'+escapeHtml(x.tur||'-')+'</span></td><td style="font-weight:700;color:'+(toNum(x.miktar_degisim)>=0?'#4ade80':'#f87171')+'">'+(toNum(x.miktar_degisim)>=0?'+':'')+toNum(x.miktar_degisim)+'</td><td>'+((x.stok_sonrasi!=null)?toNum(x.stok_sonrasi):'-')+'</td><td>'+escapeHtml(x.aciklama||'-')+'</td></tr>').join(''):'<tr><td colspan="5" class="muted">Bu ürün için hareket bulunamadı.</td></tr>';
+  applyResponsiveTableLabels();
+}
+
+// v46 SQL güncellemesi henüz uygulanmadıysa mevcut v45 fonksiyonuna güvenli
+// geri dönüş yapar. Böylece stok girişi kesilmez; sadece yeni meta alanlar
+// (tedarikçi ve maliyet) SQL güncellemesi yapılana kadar kayda yazılamaz.
+async function recordStockTransactionSafe(args){
+  let res=await supa.rpc('record_stock_transaction',args);
+  const missingFunction=/could not find the function public\.record_stock_transaction/i.test(String(res?.error?.message||''));
+  if(missingFunction){
+    const legacy={
+      p_product_id:args.p_product_id,p_mode:args.p_mode,p_quantity:args.p_quantity,
+      p_reason:args.p_reason,p_note:args.p_note,p_tarih:args.p_tarih
+    };
+    res=await supa.rpc('record_stock_transaction',legacy);
+    if(!res.error) showToast('Stok kaydedildi. Tedarikçi ve maliyet kaydı için v46 SQL güncellemesini de çalıştırın.','warning');
+  }
+  return res;
 }
 function initOperationalControls(){
   const type=document.getElementById('stokIslemTur'),qty=document.getElementById('stokIslemMiktar');
@@ -3191,11 +3267,19 @@ function initOperationalControls(){
   const search=document.getElementById('stokHareketAra');if(search&&!search._bound){search._bound=true;search.oninput=renderStokHareketleri;}
   const save=document.getElementById('stokIslemKaydet');
   if(save&&!save._bound){save._bound=true;save.onclick=async()=>{
-    const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim(),dateValue=document.getElementById('stokIslemTarih')?.value;
+    const urunId=document.getElementById('stokIslemUrun')?.value,mode=document.getElementById('stokIslemTur')?.value,quantity=toNum(document.getElementById('stokIslemMiktar')?.value),reason=document.getElementById('stokIslemNeden')?.value,note=(document.getElementById('stokIslemAciklama')?.value||'').trim(),dateValue=document.getElementById('stokIslemTarih')?.value,supplierId=document.getElementById('stokTedarikci')?.value||null,unitCost=toNum(document.getElementById('stokBirimMaliyet')?.value);
     if(!urunId)return showToast('Ürün seçin.','warning');if(quantity<0||(!quantity&&mode!=='sayim')||!tamStokAdediMi(quantity))return showToast('Stok adedi tam sayı olmalı.','warning');if(!dateValue)return showToast('Hareket tarihi zorunludur.','warning');if(!reason)return showToast('Stok hareketi nedeni zorunludur.','warning');
     const urun=URUNLER.find(u=>String(u.id)===String(urunId)),action=mode==='sayim'?'stok '+quantity+' olarak düzeltilecek':quantity+' '+(mode==='giris'?'giriş':'çıkış')+' yapılacak';
     if(!confirm((urun?.ad||'Ürün')+' için '+action+'. Onaylıyor musunuz?'))return;
-    save.disabled=true;try{const res=await supa.rpc('record_stock_transaction',{p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null,p_tarih:dateValue+'T12:00:00+03:00'});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
+    save.disabled=true;try{const res=await recordStockTransactionSafe({p_product_id:urunId,p_mode:mode,p_quantity:quantity,p_reason:reason,p_note:note||null,p_tarih:dateValue+'T12:00:00+03:00',p_supplier_id:supplierId,p_unit_cost:unitCost||null});if(res.error)throw res.error;await Promise.all([fetchUrunler(),fetchStokLoglari()]);fillOperationalSelects();renderUrunler();renderStokHareketleri();renderDash();document.getElementById('stokIslemMiktar').value='';document.getElementById('stokIslemAciklama').value='';document.getElementById('stokBirimMaliyet').value='';showToast('Stok işlemi kaydedildi. Yeni stok: '+res.data,'success');}catch(e){showToast(e?.message||'Stok işlemi kaydedilemedi.','error');}finally{save.disabled=false;}
+  };}
+  const card=document.getElementById('stokKartUrun');if(card&&!card._bound){card._bound=true;card.onchange=renderStokKarti;}
+  const countDate=document.getElementById('sayimOturumTarih');if(countDate&&!countDate.value)countDate.value=todayStr();
+  const countSave=document.getElementById('sayimOturumKaydet');if(countSave&&!countSave._bound){countSave._bound=true;countSave.onclick=async()=>{
+    const productId=document.getElementById('sayimOturumUrun')?.value,qty=toNum(document.getElementById('sayimOturumAdet')?.value),date=document.getElementById('sayimOturumTarih')?.value,name=(document.getElementById('sayimOturumAdi')?.value||'Sayım').trim(),note=(document.getElementById('sayimOturumNot')?.value||'').trim();
+    if(!productId||!date||!tamStokAdediMi(qty)||qty<0)return showToast('Sayım için ürün, tarih ve tam adet girin.','warning');
+    if(!confirm(name+' kaydıyla stok '+qty+' olarak sayılacak. Onaylıyor musunuz?'))return;
+    countSave.disabled=true;try{const res=await recordStockTransactionSafe({p_product_id:productId,p_mode:'sayim',p_quantity:qty,p_reason:'Sayım oturumu: '+name,p_note:note||null,p_tarih:date+'T12:00:00+03:00',p_supplier_id:null,p_unit_cost:null});if(res.error)throw res.error;const session=await supa.from('stok_sayim_oturumlari').insert({user_id:USER.id,ad:name,tarih:date,urun_id:productId,sayilan_adet:qty,notlar:note||null});if(session.error)console.warn('Sayım oturumu ayrıntısı kaydedilemedi:',session.error.message);await Promise.all([fetchUrunler(),fetchStokLoglari()]);renderStokHareketleri();renderStokKarti();showToast('Sayım oturumu kaydedildi.','success');}catch(e){showToast(e?.message||'Sayım kaydedilemedi.','error');}finally{countSave.disabled=false;}
   };}
   const from=document.getElementById('virmanKaynak');if(from&&!from._bound){from._bound=true;from.onchange=fillOperationalSelects;}
   const transfer=document.getElementById('virmanKaydet');
@@ -3205,6 +3289,14 @@ function initOperationalControls(){
     const source=HESAPLAR.find(h=>String(h.id)===String(fromId)),target=HESAPLAR.find(h=>String(h.id)===String(toId));if(source?.para_birimi!==target?.para_birimi)return showToast('Virman hesapları aynı para biriminde olmalı.','warning');
     if(!confirm(source.ad+' hesabından '+target.ad+' hesabına '+fmt(amount,source.para_birimi)+' aktarılacak. Onaylıyor musunuz?'))return;
     transfer.disabled=true;try{const res=await supa.rpc('cash_transfer_transaction',{p_from:fromId,p_to:toId,p_amount:amount,p_date:nowLocalDTWithSeconds(),p_description:desc||null});if(res.error)throw res.error;await fetchHareketler();renderHareketler();renderDash();document.getElementById('virmanTutar').value='';document.getElementById('virmanAciklama').value='';showToast('Virman iki taraflı ve atomik olarak kaydedildi.','success');}catch(e){showToast(e?.message||'Virman kaydedilemedi.','error');}finally{transfer.disabled=false;}
+  };}
+  const reconcileDate=document.getElementById('mutabakatTarih');if(reconcileDate&&!reconcileDate.value)reconcileDate.value=todayStr();
+  const reconcileSave=document.getElementById('mutabakatKaydet');if(reconcileSave&&!reconcileSave._bound){reconcileSave._bound=true;reconcileSave.onclick=async()=>{
+    const hesapId=document.getElementById('mutabakatHesap')?.value,sayilan=toNum(document.getElementById('mutabakatSayılan')?.value),tarih=document.getElementById('mutabakatTarih')?.value,note=(document.getElementById('mutabakatNot')?.value||'').trim();
+    if(!hesapId||!tarih||!Number.isFinite(sayilan)||sayilan<0)return showToast('Hesap, tarih ve sayılan bakiye zorunludur.','warning');
+    const expected=hesapBeklenenBakiye(hesapId),diff=Number((sayilan-expected).toFixed(2)),h=HESAPLAR.find(x=>String(x.id)===String(hesapId));
+    if(!confirm((h?.ad||'Hesap')+' için sistem '+fmt(expected,h?.para_birimi||'USD')+', sayılan '+fmt(sayilan,h?.para_birimi||'USD')+', fark '+fmt(diff,h?.para_birimi||'USD')+'. Kaydedilsin mi?'))return;
+    reconcileSave.disabled=true;try{const {error}=await supa.from('kasa_mutabakatlari').insert({user_id:USER.id,hesap_id:hesapId,tarih:tarih+'T12:00:00+03:00',sistem_bakiye:expected,sayilan_bakiye:sayilan,fark:diff,notlar:note||null});if(error)throw error;await fetchMutabakatlar();renderMutabakatlar();document.getElementById('mutabakatSayılan').value='';document.getElementById('mutabakatNot').value='';showToast('Kasa mutabakatı kaydedildi.','success');}catch(e){showToast(e?.message||'Mutabakat kaydedilemedi.','error');}finally{reconcileSave.disabled=false;}
   };}
   ['fFilterSearch','fFilterCari','fFilterTip','fFilterStart','fFilterEnd'].forEach(id=>{const el=document.getElementById(id);if(el&&!el._bound){el._bound=true;el.addEventListener(id==='fFilterSearch'?'input':'change',()=>{FATURA_PAGE=1;renderFaturalar();});}});
   const clear=document.getElementById('fFilterClear');if(clear&&!clear._bound){clear._bound=true;clear.onclick=()=>{['fFilterSearch','fFilterCari','fFilterTip','fFilterStart','fFilterEnd'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});FATURA_PAGE=1;renderFaturalar();};}
@@ -3349,9 +3441,9 @@ function renderAll(){
 
 function renderTab(tab){
   if(tab === 'cariler') renderCariler();
-  if(tab === 'urunler'){ renderUrunler(); renderStokHareketleri(); }
+  if(tab === 'urunler'){ renderUrunler(); renderStokHareketleri(); renderStokKarti(); }
   if(tab === 'faturalar') renderFaturalar();
-  if(tab === 'kasa'){ renderHesaplar(); renderHareketler(); }
+  if(tab === 'kasa'){ renderHesaplar(); renderHareketler(); renderMutabakatlar(); }
   if(tab === 'gelirgider') renderGG();
   if(tab === 'finans') renderDash();
   if(tab === 'raporlar') renderDash();
@@ -4064,37 +4156,16 @@ window.cpSatisiTamamla = async ()=>{
 
   const numara = await getAutoFaturaNo();
 
-  const { data: fatura, error } = await supa.from("faturalar").insert({
-    user_id: USER.id,
-    tip: tip,
-    cari_id: ACTIVE_CARI_ID,
-    tarih: nowLocalDTWithSeconds(),
-    numara,
-    genel_toplam: total,
-    para_birimi: pb
-  }).select().single();
-  if(error) return showToast(error.message,"error");
-
-  const kalemler = CP_SEPET.map(s=>({
-    fatura_id: fatura.id,
-    urun_id: s.urun_id,
-    miktar: s.miktar,
-    birim_fiyat: s.birim_fiyat,
-    kdv_oran: s.kdv_oran,
-    satir_tutar: s.satir_tutar,
-    // snapshots (madde 2)
-    urun_kod_snapshot: s.urun_kod,
-    urun_ad_snapshot: s.urun_ad,
-    alis_fiyat_snapshot: s.alis_snapshot,
-    satis_fiyat_snapshot: s.satis_snapshot,
-    para_birimi_snapshot: s.para_birimi
-  }));
-  await supa.from("fatura_kalemler").insert(kalemler);
-
-  for(const s of CP_SEPET){
-    const degisim = tip === 'iade' ? s.miktar : -s.miktar;
-    await applyStockChange(s.urun_id, degisim, {tur:tip, kaynak:"fatura", kaynak_id:fatura.id, aciklama: tip === 'iade' ? "Müşteri iadesi" : "Hızlı satış"});
-  }
+  // Hızlı satışta da fatura, satırlar ve stok tek veritabanı işlemiyle yazılır.
+  // Böylece bağlantı kesilse bile fatura ile stok birbirinden kopmaz.
+  const payload={id:null,tip,cari_id:ACTIVE_CARI_ID,tarih:nowLocalDTWithSeconds(),numara,
+    ara_toplam:total,kdv_toplam:0,iskonto_toplam:0,genel_toplam:total,para_birimi:pb,
+    vade_tarihi:null,kur:1,odenen_tutar:0,odeme_durumu:'Odenmedi'};
+  const lines=CP_SEPET.map(s=>({urun_id:s.urun_id,miktar:toNum(s.miktar),birim_fiyat:toNum(s.birim_fiyat),
+    kdv_oran:toNum(s.kdv_oran),satir_tutar:toNum(s.satir_tutar),urun_kod:s.urun_kod||'',urun_ad:s.urun_ad||'',
+    alis_snapshot:toNum(s.alis_snapshot),satis_snapshot:toNum(s.satis_snapshot),para_birimi:s.para_birimi||pb,iskonto_oran:0,iskonto_tutar:0}));
+  const {error}=await supa.rpc('save_invoice_transaction',{p_invoice:payload,p_lines:lines});
+  if(error) return showToast(error.message,'error');
 
   const yeniBakiye = tip === 'iade' ? oncekiBakiye - total : oncekiBakiye + total;
   showToast(`${tip === 'iade' ? 'İade' : 'Satış'} tamamlandı. Yeni borç: ${fmt(yeniBakiye, pb)}`,"success");
@@ -4843,7 +4914,7 @@ function _downloadTextFile(filename, text, mime="application/json;charset=utf-8"
 function buildBackupPayload(){
   return {
     app: "pexura-muhasebe",
-    version: 1,
+    version: 2,
     exported_at: new Date().toISOString(),
     user: USER ? { id: USER.id, email: USER.email, role: USER_ROLE } : null,
     tables: {
@@ -4855,9 +4926,25 @@ function buildBackupPayload(){
       faturalar: FATURALAR || [],
       fatura_kalemler: TUM_KALEMLER || [],
       stok_hareketleri: STOK_LOGS || [],
+      kasa_mutabakatlari: MUTABAKATLAR || [],
       kullanici_notlari: (NOTES || []).map(n=>({id:n.id,user_id:USER?.id,title:n.title,content:n.text,created_at:n.created_at,updated_at:n.updated_at||null}))
     }
   };
+}
+
+async function saveCloudBackup({automatic=false}={}){
+  if(!USER) return false;
+  const {error}=await supa.from('app_yedekler').insert({user_id:USER.id,tur:automatic?'otomatik':'manuel',icerik:buildBackupPayload()});
+  if(error) throw error;
+  localStorage.setItem('pexura_last_cloud_backup',new Date().toISOString());
+  return true;
+}
+
+async function maybeAutomaticBackup(){
+  if(!USER || USER_ROLE==='personel')return;
+  const last=Date.parse(localStorage.getItem('pexura_last_cloud_backup')||'');
+  if(Number.isFinite(last) && Date.now()-last<24*60*60*1000)return;
+  try{await saveCloudBackup({automatic:true});}catch(e){console.warn('Otomatik yedek yazılamadı:',e?.message||e);}
 }
 
 async function doBackup(){
@@ -4868,7 +4955,8 @@ async function doBackup(){
     const payload = buildBackupPayload();
     const stamp = new Date().toISOString().replace(/[:.]/g,'-');
     _downloadTextFile(`pexura-yedek-${stamp}.json`, JSON.stringify(payload, null, 2));
-    showToast("Yedek indirildi.", "success");
+    try{await saveCloudBackup({automatic:false});showToast("Yedek indirildi ve buluta kaydedildi.", "success");}
+    catch(e){showToast("Yedek indirildi. Bulut kopyası kaydedilemedi.", "warning");}
   }catch(e){
     console.error(e);
     showToast(e?.message || "Yedek alınamadı.", "error");
@@ -4901,13 +4989,13 @@ async function upsertTable(table, rows){
 
 const BACKUP_TABLES = Object.freeze([
   "cariler", "urunler", "kasa_hesaplar", "faturalar", "fatura_kalemler",
-  "kasa_hareketler", "gelir_gider", "stok_hareketleri", "kullanici_notlari"
+  "kasa_hareketler", "gelir_gider", "stok_hareketleri", "kasa_mutabakatlari", "kullanici_notlari"
 ]);
 
 function validateBackupPayload(payload){
   if(!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error("Yedek biçimi geçersiz.");
   if(payload.app && payload.app !== 'pexura-muhasebe') throw new Error("Bu dosya PEXURA yedeği değil.");
-  if(payload.version && Number(payload.version) > 1) throw new Error("Yedek daha yeni bir uygulama sürümüyle oluşturulmuş.");
+  if(payload.version && Number(payload.version) > 2) throw new Error("Yedek daha yeni bir uygulama sürümüyle oluşturulmuş.");
   const tables = payload.tables || payload;
   let totalRows = 0;
   for(const name of BACKUP_TABLES){
