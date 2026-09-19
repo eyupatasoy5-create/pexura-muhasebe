@@ -1970,6 +1970,28 @@ function bakiyeHtmlForCari(c){
   }).join(" ");
 }
 
+const SELECTED_DEBTOR_IDS = new Set();
+
+function getCariDebtLines(c){
+  return Object.entries(getCariBakiyeMap(c))
+    .filter(([,value])=>toNum(value)>0.000001)
+    .map(([currency,value])=>({currency,value:toNum(value)}));
+}
+
+function updateSelectedDebtorSummary(){
+  const el=document.getElementById('selectedDebtorSummary');if(!el)return;
+  const selected=(CARILER||[]).filter(c=>SELECTED_DEBTOR_IDS.has(String(c.id))&&getCariDebtLines(c).length);
+  el.textContent=selected.length?`${selected.length} borçlu seçildi`:'Borçlu seçilmedi';
+}
+
+function shareSelectedDebtors(){
+  const selected=(CARILER||[]).filter(c=>SELECTED_DEBTOR_IDS.has(String(c.id))).map(c=>({c,debts:getCariDebtLines(c)})).filter(x=>x.debts.length);
+  if(!selected.length)return showToast('WhatsApp listesi için en az bir borçlu müşteri seçin.','warning');
+  const lines=selected.map((x,index)=>`${index+1}. ${x.c.ad||'-'} — ${x.debts.map(d=>fmt(d.value,d.currency)).join(' / ')}`);
+  const message=`PEXURA BORÇLU MÜŞTERİ LİSTESİ\nTarih: ${formatDateTR(todayStr())}\n\n${lines.join('\n')}\n\nToplam müşteri: ${selected.length}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`,'_blank','noopener');
+}
+
 function renderCariler(){
   cariListe.innerHTML="";
   const isMobile = window.matchMedia("(max-width: 640px)").matches;
@@ -1978,7 +2000,7 @@ function renderCariler(){
   const searchTerm = String(document.getElementById('cariSearch')?.value || '').trim().toLocaleLowerCase('tr-TR');
   const list = (CARILER||[])
     .filter(c => showPasif ? true : (c.aktif !== false))
-    .filter(c => !showOnlyDebtors || Object.values(getCariBakiyeMap(c)).some(value => toNum(value) > 0.000001))
+    .filter(c => !showOnlyDebtors || getCariDebtLines(c).length)
     .filter(c => !searchTerm || [c.ad, c.tel, c.mail, c.adres, c.tur]
       .some(value => String(value || '').toLocaleLowerCase('tr-TR').includes(searchTerm)))
     .slice()
@@ -1988,7 +2010,8 @@ function renderCariler(){
     const emptyMessage = searchTerm
       ? 'Aramanızla eşleşen müşteri bulunamadı.'
       : (showOnlyDebtors ? 'Borçlu müşteri bulunamadı.' : 'Müşteri bulunamadı.');
-    cariListe.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">${emptyMessage}</td></tr>`;
+    cariListe.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">${emptyMessage}</td></tr>`;
+    updateSelectedDebtorSummary();
     return;
   }
 
@@ -1996,6 +2019,7 @@ function renderCariler(){
     const pasif = (c.aktif === false);
     const tr=document.createElement("tr");
     tr.innerHTML=`
+      <td data-label="Seç">${c.tur==='musteri'&&getCariDebtLines(c).length?`<input type="checkbox" class="debtor-select" data-debtor-id="${c.id}" ${SELECTED_DEBTOR_IDS.has(String(c.id))?'checked':''} aria-label="${escapeHtml(c.ad||'Müşteri')} seç">`:'-'}</td>
       <td data-label="Müşteri" onclick="openCariPanel('${c.id}')" style="cursor:pointer;${pasif?'opacity:0.55;':''}">
         <span style="font-weight:bold; font-size:16px; color:#60a5fa;">${overdueStarHtml(c)} ${c.ad}</span><br>
         <small class="muted">${c.tel||'-'}</small>${isMobile?`<div class="mobile-bakiye"><span class="muted">Bakiye:</span> ${bakiyeHtmlForCari(c)}</div>`:""}
@@ -2026,6 +2050,17 @@ function renderCariler(){
       showToast(next ? "Aktifleştirildi" : "Pasife alındı", "success");
     };
   });
+  cariListe.querySelectorAll('[data-debtor-id]').forEach(box=>box.onchange=()=>{
+    const id=String(box.dataset.debtorId);if(box.checked)SELECTED_DEBTOR_IDS.add(id);else SELECTED_DEBTOR_IDS.delete(id);updateSelectedDebtorSummary();
+  });
+  const visibleSelector=document.getElementById('selectVisibleDebtors');
+  if(visibleSelector&&!visibleSelector._bound){visibleSelector._bound=true;visibleSelector.onchange=()=>{
+    const visibleDebtors=list.filter(c=>c.tur==='musteri'&&getCariDebtLines(c).length);visibleDebtors.forEach(c=>{if(visibleSelector.checked)SELECTED_DEBTOR_IDS.add(String(c.id));else SELECTED_DEBTOR_IDS.delete(String(c.id));});renderCariler();
+  };}
+  const selectableDebtors=list.filter(c=>c.tur==='musteri'&&getCariDebtLines(c).length);
+  if(visibleSelector)visibleSelector.checked=selectableDebtors.length>0&&selectableDebtors.every(c=>SELECTED_DEBTOR_IDS.has(String(c.id)));
+  const share=document.getElementById('shareSelectedDebtors');if(share&&!share._bound){share._bound=true;share.onclick=shareSelectedDebtors;}
+  updateSelectedDebtorSummary();
 }
 window.editCari = (id) => {
   const c = CARILER.find(x => x.id == id);

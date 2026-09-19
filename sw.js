@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pexura-v46-2-atomic-sales';
+const CACHE_NAME = 'pexura-v46-3-debtor-share';
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,7 @@ const ASSETS = [
   './style.css?v=41',
   './core.js',
   './stock-math.js?v=34',
-  './app.js?v=46.2',
+  './app.js?v=46.3',
   './pwa.js?v=25',
   './pdf-font.js',
   './manifest.json',

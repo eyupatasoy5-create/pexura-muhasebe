@@ -539,8 +539,13 @@
               <input type="checkbox" id="showPasifCariler" style="width:auto;"> Pasifleri göster
             </label>
           </div>
+          <div class="row cari-list-filters" style="margin:10px 0; align-items:center; gap:10px;">
+            <label class="cari-filter-option"><input type="checkbox" id="selectVisibleDebtors" style="width:auto;"> Görünen borçluları seç</label>
+            <button id="shareSelectedDebtors" type="button" class="success">WhatsApp Borçlu Listesi</button>
+            <span id="selectedDebtorSummary" class="muted"></span>
+          </div>
           <table class="responsive-table">
-            <thead><tr><th>Ünvan / Tel</th><th>Bakiye</th><th>Tür</th><th>İşlem</th></tr></thead>
+            <thead><tr><th>Seç</th><th>Ünvan / Tel</th><th>Bakiye</th><th>Tür</th><th>İşlem</th></tr></thead>
             <tbody id="cariListe"></tbody>
           </table>
         </div>
@@ -1149,7 +1154,7 @@
 <script src="stock-math.js?v=34"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="pdf-font.js"></script>
-<script src="app.js?v=46.2"></script>
+<script src="app.js?v=46.3"></script>
 <script src="pwa.js?v=27"></script>
 
 </body>
